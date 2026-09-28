@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Platformer</RootNamespace>
+        <!-- CI overrides this with the slug of the game name from game.json -->
+        <AssemblyName>PenguinJump</AssemblyName>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <!-- CI overrides Version (e.g. 1.0.42); local builds are marked as dev builds -->
+        <Version>0.0.0</Version>
+        <InformationalVersion>$(Version)-dev</InformationalVersion>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+        <ApplicationIcon />
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+        <SelfContained>true</SelfContained>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Raylib-cs" Version="8.1.0" />
+    </ItemGroup>
+
+    <!-- Shared data (levels, translations, config) is embedded so the game is a single file. -->
+    <ItemGroup>
+        <EmbeddedResource Include="..\game.json" LogicalName="game.json" />
+        <EmbeddedResource Include="..\shared\lang\*.json" LogicalName="lang/%(Filename)%(Extension)" />
+        <EmbeddedResource Include="..\shared\levels\*.*" LogicalName="levels/%(Filename)%(Extension)" />
+    </ItemGroup>
+
+</Project>

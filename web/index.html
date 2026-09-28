@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1e3a6e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Game</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a1024; overflow: hidden; touch-action: none;
+      -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+    body { display: flex; align-items: center; justify-content: center; }
+    canvas { display: block; image-rendering: auto; }
+    #touch { position: fixed; inset: 0; pointer-events: none; display: none; }
+    body.playing #touch { display: block; }
+    .tbtn { position: absolute; pointer-events: auto; width: 96px; height: 96px; border-radius: 50%;
+      background: rgba(255,255,255,0.18); border: 3px solid rgba(255,255,255,0.45); color: #fff;
+      font: bold 34px system-ui, sans-serif; display: flex; align-items: center; justify-content: center;
+      touch-action: none; }
+    .tbtn.down { background: rgba(255,196,64,0.55); border-color: #fff; }
+    #t-left { left: max(18px, env(safe-area-inset-left)); bottom: 22px; }
+    #t-right { left: calc(max(18px, env(safe-area-inset-left)) + 112px); bottom: 22px; }
+    #t-run { right: calc(max(18px, env(safe-area-inset-right)) + 112px); bottom: 22px; width: 84px; height: 84px; font-size: 28px; }
+    #t-jump { right: max(18px, env(safe-area-inset-right)); bottom: 52px; width: 108px; height: 108px; }
+    #t-pause { right: max(14px, env(safe-area-inset-right)); top: 84px; width: 56px; height: 56px; font-size: 22px; border-radius: 16px; }
+    #rotate { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+      background: #0a1024; color: #fff; font: bold 24px system-ui, sans-serif; text-align: center; padding: 24px; z-index: 10; }
+    #rotate .phone { width: 60px; height: 100px; border: 5px solid #ffc440; border-radius: 12px; margin-bottom: 20px;
+      animation: turn 2s ease-in-out infinite; }
+    @keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+    @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div id="touch">
+    <div class="tbtn" id="t-left">◀</div>
+    <div class="tbtn" id="t-right">▶</div>
+    <div class="tbtn" id="t-run">B</div>
+    <div class="tbtn" id="t-jump">▲</div>
+    <div class="tbtn" id="t-pause">II</div>
+  </div>
+  <div id="rotate"><div class="phone"></div><div id="rotate-text">Please rotate your device</div></div>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/stage.js"></script>
+  <script src="js/scenes.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
