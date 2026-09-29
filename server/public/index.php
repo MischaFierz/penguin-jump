@@ -13,7 +13,9 @@ if (PHP_SAPI === 'cli-server') {
 require __DIR__ . '/../src/bootstrap.php';
 
 use App\Config;
+use App\Controllers\AdminApi;
 use App\Controllers\Api;
+use App\Controllers\KontoApi;
 use App\Controllers\Site;
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -32,6 +34,9 @@ if (!Config::isHttps() && Config::get('force_https', true)) {
 
 try {
     if ($path === '/api' || str_starts_with($path, '/api/v1/')) Api::handle($path, $method);
+    if (str_starts_with($path, '/konto/api/')) KontoApi::handle($path, $method);
+    if (str_starts_with($path, '/admin/api/')) AdminApi::handle($path, $method);
+    if (in_array($path, ['/konto', '/admin', '/play'], true)) { header('Location: ' . url($path . '/'), true, 301); exit; }
     Site::handle($path, $method);
 } catch (Throwable $e) {
     error_log('Unhandled: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());

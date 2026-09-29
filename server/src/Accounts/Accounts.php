@@ -64,7 +64,7 @@ final class Accounts
     }
 
     /** @return array{id: int, recovery: string}|string account + recovery code, or an error key */
-    public static function register(string $username, string $password, bool $admin = false): array|string
+    public static function register(string $username, string $password): array|string
     {
         if ($e = self::validateUsername($username)) return $e;
         if ($e = self::validatePassword($password, $username)) return $e;
@@ -73,14 +73,26 @@ final class Accounts
         $recovery = self::newRecoveryCode();
         $now = time();
         try {
-            Db::run('INSERT INTO accounts (username, username_norm, password_hash, recovery_hash, is_admin, created_at, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$username, $norm, self::hash($password), self::hash(self::normCode($recovery)), $admin ? 1 : 0, $now, $now]);
+            Db::run('INSERT INTO accounts (username, username_norm, password_hash, recovery_hash, created_at, password_changed_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [$username, $norm, self::hash($password), self::hash(self::normCode($recovery)), $now, $now]);
         } catch (\PDOException) {
             return 'err.username_taken'; // unique index race
         }
         $id = Db::lastId();
-        Security::audit($admin ? 'admin_created' : 'register', $id, $username);
+        Security::audit('register', $id, $username);
         return ['id' => $id, 'recovery' => $recovery];
+    }
+
+    /** Sets a new password after an e-mail code was confirmed (see EmailCodes). */
+    public static function setPassword(int $id, string $new): ?string
+    {
+        $acc = self::byId($id);
+        if ($acc === null) return 'err.login_failed';
+        if ($e = self::validatePassword($new, (string) $acc['username'])) return $e;
+        Db::run('UPDATE accounts SET password_hash = ?, password_changed_at = ? WHERE id = ?', [self::hash($new), time(), $id]);
+        self::revokeAllTokens($id);
+        Security::audit('password_reset_email', $id);
+        return null;
     }
 
     /**
@@ -149,6 +161,8 @@ final class Accounts
     {
         Db::tx(function () use ($id): void {
             Db::run('DELETE FROM scores WHERE account_id = ?', [$id]);
+            // scores on the player's own levels go with them (the levels themselves cascade)
+            Db::run("DELETE FROM scores WHERE level_code IN (SELECT code FROM levels WHERE author_id = ? AND kind = 'community')", [$id]);
             Db::run('DELETE FROM auth_tokens WHERE account_id = ?', [$id]);
             Db::run('DELETE FROM accounts WHERE id = ?', [$id]);
         });
@@ -190,16 +204,5 @@ final class Accounts
     public static function revokeAllTokens(int $accountId): void
     {
         Db::run('DELETE FROM auth_tokens WHERE account_id = ?', [$accountId]);
-    }
-
-    // ------------------------------------------------------------------ two-factor (admins)
-    public static function verifyTotp(array $acc, string $code): bool
-    {
-        $secret = $acc['totp_secret'] ? Security::decrypt((string) $acc['totp_secret']) : null;
-        if ($secret === null) return false;
-        $step = Totp::verify($secret, $code, isset($acc['totp_last_step']) ? (int) $acc['totp_last_step'] : null);
-        if ($step === null) return false;
-        Db::run('UPDATE accounts SET totp_last_step = ? WHERE id = ?', [$step, $acc['id']]);
-        return true;
     }
 }

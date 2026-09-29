@@ -1,5 +1,16 @@
 <?php
 return [
+    'nav.community' => "Communauté",
+    'community.intro' => "Des niveaux créés par les joueurs. Chaque niveau publié a été terminé par son auteur – il est donc faisable !",
+    'community.build' => "Créer ton niveau",
+    'community.top' => "Les plus aimés",
+    'community.new' => "Les plus récents",
+    'community.plays' => "Les plus joués",
+    'community.search' => "Titre ou auteur",
+    'community.search_btn' => "Chercher",
+    'community.empty' => "Aucun niveau trouvé.",
+    'community.by' => "par {0}",
+    'home.f5' => "Éditeur de niveaux : crée tes niveaux, publie-les et joue ceux des autres",
     'nav.home' => 'Accueil',
     'nav.play' => 'Jouer',
     'nav.leaderboard' => 'Classement',

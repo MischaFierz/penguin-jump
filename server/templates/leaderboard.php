@@ -3,7 +3,7 @@ use App\Game\Levels;
 $worlds = [];
 foreach ($levels as $id) $worlds[Levels::world($id)][] = $id;
 ?>
-<h1><?= h(t('nav.leaderboard')) ?></h1>
+<h1><?= h(t('nav.leaderboard')) ?><?php if (!empty($community)): ?> <small>– <?= h($community['title']) ?> (<?= h($community['author']) ?>)</small><?php endif; ?></h1>
 <div class="levels">
   <?php foreach ($worlds as $w => $ids): ?>
     <div class="world"><span class="muted"><?= h(t('world.' . $w)) ?></span>

@@ -1,5 +1,16 @@
 <?php
 return [
+    'nav.community' => "Community",
+    'community.intro' => "Von Spielerinnen und Spielern gebaute Level. Jedes veröffentlichte Level wurde von seinem Ersteller geschafft – es ist also machbar!",
+    'community.build' => "Eigenes Level bauen",
+    'community.top' => "Beliebteste",
+    'community.new' => "Neueste",
+    'community.plays' => "Meistgespielte",
+    'community.search' => "Titel oder Ersteller",
+    'community.search_btn' => "Suchen",
+    'community.empty' => "Keine Level gefunden.",
+    'community.by' => "von {0}",
+    'home.f5' => "Level-Editor: eigene Level bauen, veröffentlichen und die Level anderer spielen",
     'nav.home' => 'Start',
     'nav.play' => 'Spielen',
     'nav.leaderboard' => 'Bestenliste',

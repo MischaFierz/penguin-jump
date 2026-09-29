@@ -36,6 +36,6 @@ $labels = ['win-x64' => t('home.windows'), 'linux-x64' => t('home.linux'), 'andr
 <section>
   <h2><?= h(t('home.features')) ?></h2>
   <ul class="features">
-    <?php foreach (['home.f1', 'home.f2', 'home.f3', 'home.f4'] as $f): ?><li><?= h(t($f)) ?></li><?php endforeach; ?>
+    <?php foreach (['home.f5', 'home.f1', 'home.f2', 'home.f3', 'home.f4'] as $f): ?><li><?= h(t($f)) ?></li><?php endforeach; ?>
   </ul>
 </section>

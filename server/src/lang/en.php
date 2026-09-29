@@ -1,5 +1,16 @@
 <?php
 return [
+    'nav.community' => "Community",
+    'community.intro' => "Levels built by players. Every published level has been finished by its author - so it can be done!",
+    'community.build' => "Build your own level",
+    'community.top' => "Most liked",
+    'community.new' => "Newest",
+    'community.plays' => "Most played",
+    'community.search' => "Title or author",
+    'community.search_btn' => "Search",
+    'community.empty' => "No levels found.",
+    'community.by' => "by {0}",
+    'home.f5' => "Level editor: build your own levels, publish them and play the levels of others",
     'nav.home' => 'Home',
     'nav.play' => 'Play',
     'nav.leaderboard' => 'Leaderboard',

@@ -31,7 +31,8 @@ final class Security
     }
 
     // ------------------------------------------------------------------ session (website only; the API uses tokens)
-    public static function startSession(): void
+    /** @param string $area 'konto' (players) or 'admin' (panel): separate cookies, so the two logins never mix */
+    public static function startSession(string $area = 'konto'): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) return;
         $https = Config::isHttps();
@@ -41,7 +42,7 @@ final class Security
         ini_set('session.sid_length', '48');
         ini_set('session.sid_bits_per_character', '6');
         ini_set('session.gc_maxlifetime', '7200');
-        session_name($https ? '__Host-sid' : 'sid');
+        session_name(($https ? '__Host-' : '') . ($area === 'admin' ? 'psid' : 'sid'));
         session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
         session_start();
         $now = time();
@@ -133,6 +134,13 @@ final class Security
     {
         Db::run('INSERT INTO audit_log (at, account_id, action, detail, ip_hash) VALUES (?, ?, ?, ?, ?)',
             [time(), $accountId, substr($action, 0, 40), mb_substr($detail, 0, 500), self::ipHash()]);
+    }
+
+    /** History entry for an action of an admin panel user. */
+    public static function panelAudit(string $action, ?int $panelUserId, string $detail = ''): void
+    {
+        Db::run('INSERT INTO audit_log (at, panel_user_id, action, detail, ip_hash) VALUES (?, ?, ?, ?, ?)',
+            [time(), $panelUserId, substr($action, 0, 40), mb_substr($detail, 0, 500), self::ipHash()]);
     }
 
     // ------------------------------------------------------------------ encryption of stored secrets (TOTP keys)

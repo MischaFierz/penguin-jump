@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin-Panel</title>
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/panel.css">
+</head>
+<body class="panel">
+  <!-- sign-in steps -->
+  <main id="signin" class="signin" hidden>
+    <form id="signin-form" class="card">
+      <img src="../assets/icon.svg" alt="" width="64" height="64">
+      <h1 id="signin-title">Admin-Panel</h1>
+      <p id="signin-text" class="muted"></p>
+      <div id="signin-fields"></div>
+      <p id="signin-error" class="error" role="alert"></p>
+      <button type="submit" class="primary wide" id="signin-submit">Anmelden</button>
+      <button type="button" class="ghost wide" id="signin-cancel" hidden>Abmelden</button>
+    </form>
+  </main>
+
+  <!-- panel -->
+  <div id="app" class="layout" hidden>
+    <aside class="sidebar">
+      <div class="brand"><img src="../assets/icon.svg" alt="" width="32" height="32"><span id="brand-name">Admin</span></div>
+      <nav id="nav" aria-label="Bereiche"></nav>
+      <div class="me">
+        <span id="me-name"></span>
+        <button type="button" id="logout" class="ghost small">Abmelden</button>
+      </div>
+    </aside>
+    <main class="content">
+      <h1 id="page-title"></h1>
+      <div id="page"></div>
+    </main>
+    <footer id="status" class="status" role="status"></footer>
+  </div>
+
+  <dialog id="dialog">
+    <form method="dialog" id="dialog-form">
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body"></div>
+      <div class="dialog-buttons">
+        <button value="cancel" class="ghost" id="dialog-cancel">Abbrechen</button>
+        <button value="ok" class="primary" id="dialog-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="../assets/panel-common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

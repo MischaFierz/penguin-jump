@@ -1,5 +1,6 @@
 # Web root: only index.php, static assets, the web game (/play) and version.json are reachable.
 Options -Indexes -MultiViews
+DirectoryIndex index.html index.php
 ServerSignature Off
 AddDefaultCharset utf-8
 
@@ -16,6 +17,7 @@ AddDefaultCharset utf-8
   RewriteRule (^|/)\. - [F,L]
   # everything that is not a real file goes to index.php
   RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ index.php [L,QSA]
 </IfModule>
 

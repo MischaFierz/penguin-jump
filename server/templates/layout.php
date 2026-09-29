@@ -2,7 +2,6 @@
 use App\Config;
 use App\Controllers\Site;
 use App\View;
-$user = Site::user();
 $flash = View::takeFlash();
 $here = (string) ($_SERVER['REQUEST_URI'] ?? '/');
 ?><!doctype html>
@@ -21,14 +20,9 @@ $here = (string) ($_SERVER['REQUEST_URI'] ?? '/');
   <a class="brand" href="<?= h(url('/')) ?>"><img src="<?= h(url('/assets/icon.svg')) ?>" alt="" width="36" height="36"><?= h(Config::gameName()) ?></a>
   <nav>
     <a href="<?= h(url('/play/')) ?>"><?= h(t('nav.play')) ?></a>
+    <a href="<?= h(url('/community')) ?>"><?= h(t('nav.community')) ?></a>
     <a href="<?= h(url('/leaderboard')) ?>"><?= h(t('nav.leaderboard')) ?></a>
-    <?php if ($user): ?>
-      <?php if ((int) $user['is_admin'] === 1): ?><a href="<?= h(url('/admin')) ?>"><?= h(t('nav.admin')) ?></a><?php endif; ?>
-      <a href="<?= h(url('/account')) ?>"><?= h($user['username']) ?></a>
-      <form method="post" action="<?= h(url('/logout')) ?>" class="inline"><?= csrf_field() ?><button class="link"><?= h(t('nav.logout')) ?></button></form>
-    <?php else: ?>
-      <a href="<?= h(url('/login')) ?>"><?= h(t('nav.login')) ?></a>
-    <?php endif; ?>
+    <a href="<?= h(url('/konto/')) ?>"><?= h(Site::loggedIn() ? t('nav.account') : t('nav.login')) ?></a>
     <form method="post" action="<?= h(url('/lang')) ?>" class="inline langs"><?= csrf_field() ?>
       <input type="hidden" name="back" value="<?= h($here) ?>">
       <?php foreach (View::LANGS as $code => $name): ?>
