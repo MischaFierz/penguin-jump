@@ -103,3 +103,13 @@ dialog h2 { margin-top: 0; }
 .stack > * + * { margin-top: 14px; }
 .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: .9rem; }
 .lang-switch button { color: var(--side-ink); border-color: rgba(255, 255, 255, .3); }
+.konto-main .card { margin: 0 auto; }
+body:not(.panel) .status { position: fixed; left: 0; right: 0; bottom: 0; border-top: 0; background: transparent; padding: 0 16px 12px; text-align: center; pointer-events: none; }
+body:not(.panel) .status:empty { display: none; }
+body:not(.panel) .status.ok, body:not(.panel) .status.error, body:not(.panel) .status.info { display: block; }
+body:not(.panel) .status.ok::before, body:not(.panel) .status.error::before { content: ''; }
+body:not(.panel) .status { color: #fff; }
+body:not(.panel) .status.ok, body:not(.panel) .status.error, body:not(.panel) .status.info { width: fit-content; max-width: 92vw; margin: 0 auto; padding: 10px 18px; border-radius: 12px; background: var(--side); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+body:not(.panel) .status.error { background: var(--danger); }
+body:not(.panel) .status.ok { background: var(--ok); }
+.grid td:first-child { white-space: nowrap; }

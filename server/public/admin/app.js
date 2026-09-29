@@ -344,4 +344,7 @@ async function communityDetail(code) {
   $('dialog').showModal();
 }
 
+// back/forward buttons and links like /admin/#community
+window.addEventListener('hashchange', () => { if (state && state.stage === 'ready' && location.hash.slice(1) !== current) go(location.hash.slice(1)); });
+
 start();

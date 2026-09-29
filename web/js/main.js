@@ -31,6 +31,7 @@ function updateRotateText() {
 }
 
 Save.load();
+Levels.init();
 Loc.init(Save.data.language);
 updateRotateText();
 Audio.sfxVolume = Save.data.sfx;
@@ -42,9 +43,13 @@ if (matchMedia('(pointer: coarse)').matches) Input.isTouch = true;
 // "?level=2-1" or "?scene=language" for quick testing
 const params = new URLSearchParams(location.search);
 if (params.get('level')) {
-  const idx = Session.levels.findIndex(f => f.includes(params.get('level').replace('-', '_')));
-  Scenes.start(new PlayScene(Math.max(0, idx)));
-} else if (params.get('scene') === 'language') Scenes.start(new LanguageScene());
+  Scenes.start(new PlayScene(Math.max(0, Levels.indexOf(params.get('level')))));
+} else if (/^c\d+$/.test(params.get('community') || '')) Scenes.start(new CommunityLevelScene(params.get('community'), () => new CommunityScene()));
+else if (params.get('scene') === 'editor') Scenes.start(new EditorListScene());
+else if (params.get('scene') === 'editor-new') Scenes.start(new EditorScene(newDoc()));
+else if (params.get('scene') === 'community') Scenes.start(new CommunityScene());
+else if (/^c\d+$/.test(params.get('editor') || '')) Scenes.start(EditorListScene.openServer(params.get('editor')));
+else if (/^\d{1,2}-\d{1,2}$/.test(params.get('admin-edit') || '')) Scenes.start(new EditorScene(AdminBackend.open(params.get('admin-edit')))); else if (params.get('scene') === 'language') Scenes.start(new LanguageScene());
 else if (params.get('scene') === 'levels') Scenes.start(new LevelSelectScene());
 else if (params.get('scene') === 'account') Scenes.start(new AccountScene());
 else if ((params.get('scene') || '').startsWith('board:')) Scenes.start(new LeaderboardScene(params.get('scene').slice(6), () => new LevelSelectScene()));

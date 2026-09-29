@@ -57,7 +57,7 @@ const Input = {
   keys: new Set(), pressed: new Set(),
   pad: { buttons: [], prev: [], axes: [0, 0] },
   touch: { left: false, right: false, jump: false, run: false, pause: false, prevJump: false, prevRun: false, prevPause: false },
-  mouse: { x: -1, y: -1, click: false, moved: false },
+  mouse: { x: -1, y: -1, click: false, moved: false, down: false, button: 0, wheelX: 0, wheelY: 0, released: false },
   isTouch: false,
   _stickPrev: { l: false, r: false, u: false, d: false },
   _stick: { l: false, r: false, u: false, d: false },
@@ -80,14 +80,21 @@ const Input = {
       return { x: (e.clientX - r.left - ox) / s, y: (e.clientY - r.top - oy) / s };
     };
     canvas.addEventListener('pointermove', e => {
-      if (e.pointerType === 'mouse') { const p = toVirtual(e); this.mouse.x = p.x; this.mouse.y = p.y; this.mouse.moved = true; }
+      if (e.pointerType === 'mouse' || this.mouse.down) { const p = toVirtual(e); this.mouse.x = p.x; this.mouse.y = p.y; this.mouse.moved = true; }
     });
     canvas.addEventListener('pointerdown', e => {
       Audio.unlock();
       const p = toVirtual(e);
-      this.mouse.x = p.x; this.mouse.y = p.y; this.mouse.click = true; this.mouse.moved = true;
+      this.mouse.x = p.x; this.mouse.y = p.y; this.mouse.click = e.button === 0; this.mouse.moved = true;
+      this.mouse.down = true; this.mouse.button = e.button;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       if (e.pointerType === 'touch') this.isTouch = true;
     });
+    const up = () => { if (this.mouse.down) this.mouse.released = true; this.mouse.down = false; };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('contextmenu', e => e.preventDefault()); // right click erases in the editor
+    canvas.addEventListener('wheel', e => { this.mouse.wheelX += e.deltaX; this.mouse.wheelY += e.deltaY; e.preventDefault(); }, { passive: false });
     this._touchLayer();
   },
 
@@ -150,6 +157,8 @@ const Input = {
     this.pressed.clear();
     this.mouse.click = false;
     this.mouse.moved = false;
+    this.mouse.released = false;
+    this.mouse.wheelX = 0; this.mouse.wheelY = 0;
     this.touch.prevJump = this.touch.jump;
     this.touch.prevRun = this.touch.run;
     this.touch.prevPause = this.touch.pause;

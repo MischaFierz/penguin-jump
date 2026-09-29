@@ -39,7 +39,7 @@ const Online = {
     return ({ not_configured: 'online.not_configured', nick_format: 'online.name_invalid', nick_bad: 'online.name_taken', nick_taken: 'online.name_taken',
       login_failed: 'online.login_failed', too_many: 'online.too_many', password_short: 'online.password_weak', password_long: 'online.password_weak',
       password_weak: 'online.password_weak', username_format: 'online.user_taken', username_taken: 'online.user_taken', rejected: 'online.rejected',
-      bad_run: 'online.rejected', run_expired: 'online.rejected', bad_replay: 'online.rejected' })[e] || 'online.error';
+      bad_run: 'online.rejected', run_expired: 'online.rejected', bad_replay: 'online.rejected', not_found: 'editor.not_found', bad_level: 'editor.not_found' })[e] || 'online.error';
   },
   fmt(ticks) { const cs = Math.floor(ticks * 100 / 120); return `${Math.floor(cs / 6000)}:${String(Math.floor(cs / 100) % 60).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`; },
 };

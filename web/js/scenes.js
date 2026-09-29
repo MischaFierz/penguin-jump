@@ -21,7 +21,7 @@ const Scenes = {
   },
 };
 
-const Session = { lives: 3, levels: DATA.levelIndex };
+const Session = { lives: 3 };
 const BACK_BTN = { x: 20, y: 20, w: 64, h: 64 };
 
 function backButton() {
@@ -104,11 +104,11 @@ class TitleScene {
     }
   }
   items() {
-    const it = [Loc.t('menu.play'), `${Loc.t('menu.language')}: ${Loc.name(Loc.current)}`, Loc.t('menu.options')];
+    const it = [Loc.t('menu.play'), Loc.t('community.title'), Loc.t('editor.title'), `${Loc.t('menu.language')}: ${Loc.name(Loc.current)}`, Loc.t('menu.options')];
     if (Config.isAndroid) it.push(Loc.t('menu.quit'));
     return it;
   }
-  layout(n) { this.menu.rects = []; for (let i = 0; i < n; i++) this.menu.rects.push({ x: VW / 2 - 200, y: 330 + i * 78, w: 400, h: 62 }); }
+  layout(n) { this.menu.rects = []; for (let i = 0; i < n; i++) this.menu.rects.push({ x: VW / 2 - 200, y: 296 + i * 64, w: 400, h: 54 }); }
   update(dt) {
     this.t += dt;
     if (UpdateDialog.update()) return;
@@ -116,9 +116,11 @@ class TitleScene {
     this.layout(n);
     const r = this.menu.update(n);
     if (r === 0) Scenes.go(new LevelSelectScene());
-    if (r === 1) Scenes.go(new LanguageScene());
-    if (r === 2) Scenes.go(new OptionsScene());
-    if (r === 3 && Config.isAndroid) window.AndroidBridge.exit();
+    if (r === 1) Scenes.go(new CommunityScene());
+    if (r === 2) Scenes.go(new EditorListScene());
+    if (r === 3) Scenes.go(new LanguageScene());
+    if (r === 4) Scenes.go(new OptionsScene());
+    if (r === 5 && Config.isAndroid) window.AndroidBridge.exit();
   }
   draw() {
     Backdrop.draw(this.t);
@@ -129,7 +131,7 @@ class TitleScene {
     Art.penguin(VW / 2 + 330, 300, -1, this.t + 1, 0, false, 0, 2, false, 1, false, 1.8);
     const items = this.items();
     this.layout(items.length);
-    items.forEach((s, i) => Ui.button(this.menu.rects[i], s, this.menu.selected === i));
+    items.forEach((s, i) => Ui.button(this.menu.rects[i], s, this.menu.selected === i, 30));
     Ui.text(`v${Config.version}`, VW - 16, VH - 30, 18, 'rgb(40,60,100)', 'right', false);
     Backdrop.hint();
     UpdateDialog.draw();
@@ -237,19 +239,43 @@ class OptionsScene {
 // ------------------------------------------------------------------ level select
 const TROPHY_BTN = { x: VW - 84, y: 20, w: 64, h: 64 };
 class LevelSelectScene {
-  constructor(sel) { this.sel = sel !== undefined ? sel : Math.max(0, Math.min(Save.data.unlocked - 1, Session.levels.length - 1)); this.t = 0; Audio.playMusic(0); }
-  levelId(i) { return `${Math.floor(i / 3) + 1}-${i % 3 + 1}`; }
-  rect(i) { return { x: 470 + (i % 3) * 250, y: 130 + Math.floor(i / 3) * 132, w: 230, h: 112 }; }
+  constructor(sel) {
+    this.t = 0; Audio.playMusic(0);
+    this.build();
+    this.sel = sel !== undefined ? sel : Math.max(0, Math.min(Save.data.unlocked - 1, Levels.main.length - 1));
+    this.scroll = 0;
+    Levels.refresh(() => { this.build(); this.sel = Math.min(this.sel, Levels.main.length - 1); });
+  }
+  /** bands: [{ world, items: [level index] }] grouped by the world number of the level id ("5-1" -> 5) */
+  build() {
+    const m = new Map();
+    Levels.main.forEach((l, i) => { const w = Levels.worldOf(l.id); if (!m.has(w)) m.set(w, []); m.get(w).push(i); });
+    this.bands = [...m.entries()].sort((a, b) => a[0] - b[0]).map(([world, items]) => ({ world, items }));
+  }
+  pos(i) { for (let b = 0; b < this.bands.length; b++) { const k = this.bands[b].items.indexOf(i); if (k >= 0) return [b, k]; } return [0, 0]; }
+  rect(i) {
+    const [b, k] = this.pos(i), n = this.bands[b].items.length, w = n <= 3 ? 230 : Math.floor(700 / n) - 20;
+    return { x: 470 + k * (w + 20), y: 130 + (b - this.scroll) * 132, w, h: 112 };
+  }
   unlocked(i) { return i < Save.data.unlocked; }
+  levelId(i) { return Levels.main[i].id; }
   update(dt) {
     this.t += dt;
-    const n = Session.levels.length, prev = this.sel;
+    const n = Levels.main.length, prev = this.sel;
+    const [b, k] = this.pos(this.sel);
     if (Input.menuLeft) this.sel = Math.max(0, this.sel - 1);
     if (Input.menuRight) this.sel = Math.min(n - 1, this.sel + 1);
-    if (Input.menuUp && this.sel - 3 >= 0) this.sel -= 3;
-    if (Input.menuDown && this.sel + 3 < n) this.sel += 3;
+    if (Input.menuUp && b > 0) this.sel = this.bands[b - 1].items[Math.min(k, this.bands[b - 1].items.length - 1)];
+    if (Input.menuDown && b < this.bands.length - 1) this.sel = this.bands[b + 1].items[Math.min(k, this.bands[b + 1].items.length - 1)];
+    if (Input.mouse.wheelY) this.scroll = Math.max(0, Math.min(this.bands.length - 4, this.scroll + Math.sign(Input.mouse.wheelY)));
+    const sb = this.pos(this.sel)[0];
+    if (prev !== this.sel) { if (sb < this.scroll) this.scroll = sb; if (sb > this.scroll + 3) this.scroll = sb - 3; }
     let click = false;
-    for (let i = 0; i < n; i++) if (Ui.hover(this.rect(i))) { if (Input.mouse.moved && !Input.isTouch) this.sel = i; if (Input.click) { this.sel = i; click = true; } }
+    for (let i = 0; i < n; i++) {
+      const r = this.rect(i);
+      if (r.y < 110 || r.y > 600) continue;
+      if (Ui.hover(r)) { if (Input.mouse.moved && !Input.isTouch) this.sel = i; if (Input.click) { this.sel = i; click = true; } }
+    }
     if (prev !== this.sel) Audio.play('menuMove');
     const board = Online.enabled && (Input.kp('KeyL') || Input.bp(3) || (Input.click && Ui.hover(TROPHY_BTN)));
     if (board) {
@@ -262,18 +288,22 @@ class LevelSelectScene {
   draw() {
     Backdrop.draw(this.t, false);
     Backdrop.header(Loc.t('levels.title'), 30);
-    const n = Session.levels.length;
-    for (let w = 0; w < Math.ceil(n / 3); w++) {
-      const th = Themes[w + 1];
-      Ui.rrect(60, 124 + w * 132, 1160, 124, 24, rgba(th.skyTop, 0.85), rgba(th.cap, 0.8), 2);
-      Ui.text(`${Loc.t('hud.world')} ${w + 1}`, 104, 140 + w * 132, 22, 'rgb(200,220,255)');
-      const name = Loc.t('world.' + (w + 1));
+    g.save();
+    g.beginPath(); g.rect(0, 118, VW, 540); g.clip();
+    this.bands.forEach((band, b) => {
+      const y = 124 + (b - this.scroll) * 132;
+      if (y < -20 || y > 700) return;
+      const th = Themes[Levels.main[band.items[0]].world] || Themes[1];
+      Ui.rrect(60, y, 1160, 124, 24, rgba(th.skyTop, 0.85), rgba(th.cap, 0.8), 2);
+      Ui.text(`${Loc.t('hud.world')} ${band.world}`, 104, y + 16, 22, 'rgb(200,220,255)');
+      const name = Loc.t('world.' + band.world) !== 'world.' + band.world ? Loc.t('world.' + band.world) : (Levels.main[band.items[0]].title || '');
       let s = 34; while (s > 16 && Ui.measure(name, s) > 350) s -= 2;
-      Ui.text(name, 104, 172 + w * 132, s, '#fff');
-    }
-    for (let i = 0; i < n; i++) {
+      Ui.text(name, 104, y + 48, s, '#fff');
+    });
+    for (let i = 0; i < Levels.main.length; i++) {
       let r = this.rect(i);
-      const sel = i === this.sel, open = this.unlocked(i), id = `${Math.floor(i / 3) + 1}-${i % 3 + 1}`;
+      if (r.y < 0 || r.y > 700) continue;
+      const sel = i === this.sel, open = this.unlocked(i), id = this.levelId(i);
       if (sel) r = { x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 };
       Ui.rrect(r.x, r.y, r.w, r.h, 20, sel ? C.accent : open ? 'rgba(30,48,90,0.94)' : 'rgba(40,44,60,0.9)', sel ? '#fff' : '#78aae6');
       const fg = sel ? C.ink : '#fff';
@@ -294,6 +324,7 @@ class LevelSelectScene {
         star(r.x + r.w - 26, r.y + 94, 9, 4, 'rgb(255,230,90)');
       }
     }
+    g.restore();
     backButton();
     if (Online.enabled) {
       const b = TROPHY_BTN;
@@ -307,18 +338,26 @@ class LevelSelectScene {
 
 // ------------------------------------------------------------------ play
 class PlayScene {
-  constructor(index, cp = null) {
+  /**
+   * index: position in Levels.main, or -1 for a custom level.
+   * custom: { code, data (parsed level), kind: 'community' | 'test', title, back: () => scene, done: (result) => void, verifyRun }
+   */
+  constructor(index, cp = null, custom = null) {
     this.index = index;
-    this.data = parseLevel(Session.levels[index]);
+    this.custom = custom;
+    this.data = custom ? custom.data : Levels.parse(index);
     this.stage = this.makeStage(cp);
     this.mode = 'intro'; this.modeTime = 0; this.acc = 0; this.menu = new Menu(); this.newRecord = false; this.timeBonus = 0;
     this.pendingJump = false; this.pendingAction = false;
     this.replay = []; this.recording = true; // inputs of this attempt (across respawns), for online highscores
     this.runId = null; this.final = null;
-    if (Online.enabled && !cp) Online.startRun(this.data.id).then(id => { this.runId = id; });
+    if (custom && custom.verifyRun) this.runId = custom.verifyRun;
+    else if (Online.enabled && !cp && (!custom || custom.kind === 'community')) Online.startRun(this.data.id).then(id => { this.runId = id; });
     Audio.playMusic(this.data.world);
   }
-  canSubmit() { return Online.enabled && !!this.final; }
+  canSubmit() { return Online.enabled && !!this.final && (!this.custom || this.custom.kind === 'community'); }
+  again() { return new PlayScene(this.index, null, this.custom); }
+  leave() { return this.custom ? this.custom.back() : new LevelSelectScene(); }
   goSubmit(next) {
     const s = this.stage;
     Scenes.go(new SubmitScene({ level: this.data.id, runId: this.runId, replay: Replay.encode(this.replay), timeTicks: this.final.timeTicks, score: this.final.score, coins: s.coins }, next));
@@ -345,6 +384,11 @@ class PlayScene {
     this.timeBonus = Replay.timeBonus(s.timeTicks);
     s.score = s.finalScore + this.timeBonus;
     this.final = { timeTicks: s.timeTicks, score: s.score };
+    if (this.custom) {
+      if (this.custom.kind === 'test') { this.custom.done({ completed: true, replay: Replay.encode(this.replay), timeTicks: s.timeTicks, score: s.score, runId: this.runId }); return; }
+      this.setMode('complete');
+      return;
+    }
     const recs = Save.data.records, old = recs[this.data.id];
     this.newRecord = !old || s.score > old.score;
     const rec = old || { score: 0, coins: 0, totalCoins: 0, time: 0 };
@@ -383,9 +427,9 @@ class PlayScene {
         this.layout(4, 250);
         const r = this.menu.update(4);
         if (r === 0) this.setMode('playing');
-        if (r === 1) Scenes.go(new PlayScene(this.index));
-        if (r === 2) Scenes.go(new LevelSelectScene());
-        if (r === 3) Scenes.go(new TitleScene());
+        if (r === 1) Scenes.go(this.again());
+        if (r === 2) Scenes.go(this.leave());
+        if (r === 3) Scenes.go(this.custom && this.custom.kind === 'test' ? this.custom.back() : new TitleScene());
         break;
       }
       case 'complete': {
@@ -394,9 +438,10 @@ class PlayScene {
         const n = this.canSubmit() ? 3 : 2;
         this.layout(n, 440);
         const r = this.menu.update(n);
-        if (r === 0) Scenes.go(new PlayScene(this.index + 1));
-        if (r === 1 && n === 3) this.goSubmit(() => new PlayScene(this.index + 1));
-        if (r === n - 1) Scenes.go(new LevelSelectScene());
+        const next = () => this.custom ? this.again() : new PlayScene(this.index + 1);
+        if (r === 0) Scenes.go(next());
+        if (r === 1 && n === 3) this.goSubmit(this.custom ? () => this.leave() : next);
+        if (r === n - 1) Scenes.go(this.leave());
         break;
       }
       case 'victory':
@@ -410,8 +455,8 @@ class PlayScene {
         if (this.modeTime < 1) break;
         this.layout(2, 380);
         const r = this.menu.update(2);
-        if (r === 0) { Session.lives = 3; Scenes.go(new PlayScene(this.index)); }
-        if (r === 1) Scenes.go(new LevelSelectScene());
+        if (r === 0) { Session.lives = 3; Scenes.go(this.again()); }
+        if (r === 1) Scenes.go(this.custom && this.custom.kind === 'test' ? (this.custom.done({ completed: false }), this.custom.back()) : this.leave());
         break;
       }
     }
@@ -427,8 +472,14 @@ class PlayScene {
       const a = this.modeTime < 1 ? 1 : Math.max(0, 1 - (this.modeTime - 1) / 0.3);
       g.globalAlpha = a;
       g.fillStyle = 'rgba(8,14,34,0.75)'; g.fillRect(0, 0, VW, VH);
-      Ui.title(`${Loc.t('hud.world')} ${this.data.id}`, VW / 2, 250, 80, '#fff', 'rgb(30,60,130)');
-      Ui.text(Loc.t('world.' + this.data.world), VW / 2, 360, 40, C.accent, 'center');
+      if (this.custom) {
+        let sz = 72; while (sz > 30 && Ui.measure(this.custom.title, sz) > 1100) sz -= 4;
+        Ui.title(this.custom.title, VW / 2, 250, sz, '#fff', 'rgb(30,60,130)');
+        Ui.text(this.custom.kind === 'test' ? Loc.t('editor.testing') : Loc.f('community.by', this.custom.author || ''), VW / 2, 360, 36, C.accent, 'center');
+      } else {
+        Ui.title(`${Loc.t('hud.world')} ${this.data.id}`, VW / 2, 250, 80, '#fff', 'rgb(30,60,130)');
+        Ui.text(Loc.t('world.' + this.data.world), VW / 2, 360, 40, C.accent, 'center');
+      }
       Art.penguinHead(VW / 2 - 50, 450, 1.6);
       Ui.text(`× ${Session.lives}`, VW / 2 - 10, 432, 40, '#fff');
       g.globalAlpha = 1;
@@ -459,7 +510,8 @@ class PlayScene {
           Ui.button(this.menu.rects[1], Loc.t('menu.continue'), this.menu.selected === 1, 26);
         }
       } else if (this.modeTime >= 0.8) {
-        const items = this.canSubmit() ? [Loc.t('complete.next'), Loc.t('online.submit'), Loc.t('pause.levels')] : [Loc.t('complete.next'), Loc.t('pause.levels')];
+        const first = this.custom ? Loc.t('gameover.retry') : Loc.t('complete.next'), last = this.custom ? Loc.t('menu.back') : Loc.t('pause.levels');
+        const items = this.canSubmit() ? [first, Loc.t('online.submit'), last] : [first, last];
         this.layout(items.length, 440);
         items.forEach((t, i) => Ui.button(this.menu.rects[i], t, this.menu.selected === i, 30));
       }
