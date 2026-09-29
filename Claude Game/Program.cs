@@ -128,8 +128,12 @@ public static class Program
             Loc.Set(Loc.All.First(l => l.Code == name[5..]));
             return new TitleScene();
         }
+        if (name.StartsWith("board:")) return new LeaderboardScene(name[6..], () => new LevelSelectScene());
+        if (name == "submit")
+            return new SubmitScene(new SubmitScene.Run("1-1", "0123456789abcdef0123456789abcdef", "AgE", 3000, 4200, 12), () => new TitleScene());
         return name switch
         {
+            "account" => new AccountScene(),
             "language" => new LanguageScene(),
             "options" => new OptionsScene(),
             "levels" => new LevelSelectScene(),

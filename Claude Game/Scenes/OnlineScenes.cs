@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Platformer.Core;
+using Platformer.Game;
 using Raylib_cs;
 
 namespace Platformer.Scenes;
@@ -218,8 +219,20 @@ public sealed class LeaderboardScene : IScene
         MenuBackdrop.Header($"{Loc.T("online.leaderboard")}  {_level}", 30);
         var panel = new Rectangle(Ui.Width / 2f - 420, 120, 840, 540);
         Ui.Panel(panel);
-        Ui.Text($"◀  {(_by == "time" ? Loc.T("online.by_time") : Loc.T("online.by_score"))}  ▶", Ui.Width / 2f, 140, 30, Ui.Accent, Align.Center);
+        string tab = _by == "time" ? Loc.T("online.by_time") : Loc.T("online.by_score");
+        Ui.Text(tab, Ui.Width / 2f, 140, 30, Ui.Accent, Align.Center);
+        float half = Ui.Measure(tab, 30).X / 2 + 30;
+        Art.Tri(new Vector2(Ui.Width / 2f - half, 157), new Vector2(Ui.Width / 2f - half + 16, 147), new Vector2(Ui.Width / 2f - half + 16, 167), Ui.Accent);
+        Art.Tri(new Vector2(Ui.Width / 2f + half, 157), new Vector2(Ui.Width / 2f + half - 16, 167), new Vector2(Ui.Width / 2f + half - 16, 147), Ui.Accent);
         DrawTable(_entries, _error, 200, _load != null);
+    }
+
+    /// <summary>Small green tick for registered players (the fonts have no ✓ glyph).</summary>
+    private static void DrawCheck(float x, float y)
+    {
+        var c = new Color(120, 230, 150, 255);
+        Raylib.DrawLineEx(new Vector2(x, y), new Vector2(x + 6, y + 7), 4, c);
+        Raylib.DrawLineEx(new Vector2(x + 5, y + 7), new Vector2(x + 17, y - 8), 4, c);
     }
 
     public static void DrawTable(List<LeaderboardEntry>? entries, string? error, float y, bool loading)
@@ -238,7 +251,8 @@ public sealed class LeaderboardScene : IScene
             y += 42;
             var col = e.Rank switch { 1 => new Color(255, 215, 90, 255), 2 => new Color(220, 225, 235, 255), 3 => new Color(230, 170, 110, 255), _ => Color.White };
             Ui.Text($"{e.Rank}", Ui.Width / 2f - 380, y, 28, col);
-            Ui.Text(e.Name + (e.Registered ? " ✓" : ""), Ui.Width / 2f - 320, y, 28, col);
+            Ui.Text(e.Name, Ui.Width / 2f - 320, y, 28, col);
+            if (e.Registered) DrawCheck(Ui.Width / 2f - 320 + Ui.Measure(e.Name, 28).X + 14, y + 14);
             Ui.Text(Online.FormatTime(e.TimeTicks), Ui.Width / 2f + 190, y, 28, col, Align.Right);
             Ui.Text($"{e.Score}", Ui.Width / 2f + 380, y, 28, col, Align.Right);
         }
@@ -324,7 +338,7 @@ public sealed class SubmitScene : IScene
         {
             _nick.Label = Loc.T("online.nickname");
             _nick.Draw(true);
-            Ui.Text("Enter ✓     Esc ✗", Ui.Width / 2f, 420, 22, new Color(170, 190, 220, 255), Align.Center, shadow: false);
+            Ui.Text("[Enter] OK      [Esc] " + Loc.T("menu.back"), Ui.Width / 2f, 420, 22, new Color(170, 190, 220, 255), Align.Center, shadow: false);
         }
         if (_busy != null) Ui.Text(Loc.T("online.sending"), Ui.Width / 2f, 300, 30, Color.White, Align.Center);
         if (_message != null) Ui.TextBlock(_message, Ui.Width / 2f, _asking ? 470 : 300, 26, 720, new Color(255, 170, 170, 255));

@@ -55,5 +55,7 @@ public static class GameConfig
         var info = typeof(GameConfig).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0-dev";
         IsDevBuild = info.Contains("dev", StringComparison.OrdinalIgnoreCase);
         Version = info.Split('-', '+')[0];
+        // developer builds can talk to a local test server
+        if (IsDevBuild && Environment.GetEnvironmentVariable("GAME_BASE_URL") is { Length: > 0 } dev) BaseUrl = dev.TrimEnd('/');
     }
 }

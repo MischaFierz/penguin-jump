@@ -86,7 +86,7 @@ public static class FontLoader
     {
         var chars = new HashSet<int>();
         for (int c = 32; c < 127; c++) chars.Add(c);
-        foreach (var c in "×•→←↑↓©…■□äöüÄÖÜéèàç") chars.Add(c);
+        foreach (var c in "×•→←↑↓©…■□◀▶✓✗äöüÄÖÜéèàçâêîôûëïñßáíóúÁÉÍÓÚÀÈÇ") chars.Add(c);
         foreach (var s in lang.Strings.Values)
         foreach (var rune in s.EnumerateRunes())
             chars.Add(rune.Value);
