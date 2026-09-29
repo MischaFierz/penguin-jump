@@ -12,7 +12,7 @@
         <Version>0.0.0</Version>
         <InformationalVersion>$(Version)-dev</InformationalVersion>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-        <ApplicationIcon />
+        <ApplicationIcon>app.ico</ApplicationIcon>
         <InvariantGlobalization>true</InvariantGlobalization>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     </PropertyGroup>

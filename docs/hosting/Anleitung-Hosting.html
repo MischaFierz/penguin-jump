@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Anleitung: Penguin Jump auf deinem HestiaCP-Server</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm 20mm; }
+  * { box-sizing: border-box; }
+  body { font: 11pt/1.55 "Segoe UI", Arial, sans-serif; color: #1c2333; margin: 0; }
+  h1 { font-size: 25pt; line-height: 1.15; margin: 0 0 6px; }
+  .meta { color: #6a7385; margin-bottom: 18px; }
+  h2 { font-size: 17pt; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 2px solid #d7263d; page-break-after: avoid; }
+  h3 { font-size: 13pt; margin: 18px 0 6px; page-break-after: avoid; }
+  section.step { page-break-before: always; }
+  p { margin: 6px 0 10px; }
+  code { font: 9.5pt Consolas, monospace; background: #f1f3f7; border: 1px solid #e0e4ec; border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+  ol, ul { margin: 6px 0 12px; padding-left: 26px; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 10pt; page-break-inside: avoid; }
+  th, td { text-align: left; padding: 6px 9px; border: 1px solid #e0e4ec; vertical-align: top; }
+  th { background: #f4f6fa; }
+  .toc { border: 1px solid #e0e4ec; border-radius: 10px; padding: 12px 18px; background: #fafbfd; columns: 2; column-gap: 28px; }
+  .toc h3 { margin-top: 0; column-span: all; }
+  .toc ol { margin: 0; }
+  .note { border-left: 4px solid #ff8a1f; background: #fff6ec; padding: 10px 14px; margin: 12px 0; border-radius: 0 8px 8px 0; page-break-inside: avoid; }
+  .warn { border-left: 4px solid #d7263d; background: #fdeef0; padding: 10px 14px; margin: 12px 0; border-radius: 0 8px 8px 0; page-break-inside: avoid; }
+  .ok { border-left: 4px solid #1d8a4e; background: #eaf7ef; padding: 10px 14px; margin: 12px 0; border-radius: 0 8px 8px 0; page-break-inside: avoid; }
+  .check { list-style: none; padding-left: 4px; }
+  .check li::before { content: ''; display: inline-block; width: 12px; height: 12px; border: 1.5px solid #6a7385; border-radius: 3px; margin-right: 10px; vertical-align: -1px; }
+  figure { margin: 12px 0 16px; page-break-inside: avoid; text-align: center; }
+  figcaption { color: #6a7385; font-size: 9.5pt; margin-top: 6px; }
+  figure img { max-width: 100%; border: 1px solid #d9dee8; border-radius: 8px; }
+  /* ---- recreated screens ---- */
+  .shot { position: relative; background: #e9edf3; border-radius: 10px; padding: 10px; text-align: left; }
+  .shot .tag { position: absolute; right: 16px; bottom: 14px; background: #3a4150; color: #fff; font-size: 6.5pt; padding: 2px 7px; border-radius: 8px; }
+  .win { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.15); font: 8.5pt "Segoe UI", Arial, sans-serif; color: #333; }
+  .tabbar { background: #dfe3ea; padding: 6px 10px 0; display: flex; gap: 8px; align-items: center; }
+  .dots i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+  .dots i:nth-child(1) { background: #ff5f57; } .dots i:nth-child(2) { background: #febc2e; } .dots i:nth-child(3) { background: #28c840; }
+  .tab { background: #fff; border-radius: 6px 6px 0 0; padding: 4px 12px; font-size: 7.5pt; }
+  .url { background: #fff; padding: 5px 10px; border-bottom: 1px solid #e5e7eb; font-size: 7.5pt; color: #555; }
+  .url b { color: #1d8a4e; font-weight: 600; }
+  .hnav { display: flex; align-items: center; gap: 16px; padding: 9px 14px; border-bottom: 1px solid #eceef2; font-size: 7.5pt; font-weight: 700; color: #555; }
+  .hnav .logo { display: flex; align-items: center; gap: 6px; font-size: 10pt; color: #222; margin-right: 10px; }
+  .hnav .logo::before { content: ''; width: 13px; height: 13px; border-radius: 3px; background: #ff6b1a; }
+  .hnav .on { color: #ff6b1a; border-bottom: 2px solid #ff6b1a; padding-bottom: 3px; }
+  .hnav .right { margin-left: auto; font-weight: 400; color: #888; }
+  .hbar { display: flex; justify-content: space-between; align-items: center; padding: 7px 14px; background: #f7f8fa; border-bottom: 1px solid #eceef2; }
+  .hbtn { border: 1px solid #ccd; border-radius: 4px; padding: 3px 9px; font-size: 7.5pt; background: #fff; }
+  .hsave { background: #2c9a45; color: #fff; border-radius: 4px; padding: 4px 11px; font-size: 7.5pt; font-weight: 600; }
+  .hbody { padding: 14px; background: #f7f8fa; }
+  .card { background: #fff; border: 1px solid #e3e6ec; border-radius: 6px; padding: 14px 16px; max-width: 470px; }
+  .card h4 { margin: 0 0 10px; font-size: 10.5pt; }
+  .fl { font-size: 7pt; color: #666; margin: 8px 0 3px; }
+  .fi { border: 1px solid #d4d8e0; border-radius: 4px; padding: 5px 8px; font-size: 8pt; background: #fff; min-height: 24px; }
+  .fi.hl { border: 2px solid #e03040; }
+  .cb { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-size: 8pt; }
+  .cb > span:first-child { width: 11px; height: 11px; border: 1px solid #999; border-radius: 2px; display: inline-block; }
+  .cb > span.x { background: #e03040; border-color: #e03040; }
+  .cb > span.x::after { content: '✓'; color: #fff; font-size: 8px; position: relative; left: 1px; top: -3px; }
+  .adv { color: #ff6b1a; font-size: 7.5pt; margin: 10px 0 4px; font-weight: 600; }
+  .n { display: inline-flex; width: 17px; height: 17px; border-radius: 50%; background: #e03040; color: #fff; font: 700 8pt Arial; align-items: center; justify-content: center; margin-left: 6px; vertical-align: middle; }
+  .row { display: flex; align-items: center; }
+  .row .fi { flex: 1; }
+  .gen { color: #ff6b1a; font-size: 7pt; margin-left: auto; }
+  /* terminal */
+  .term { background: #0c0c0c; color: #ddd; font: 8pt Consolas, monospace; padding: 12px 14px 30px; border-radius: 0 0 8px 8px; white-space: pre-wrap; line-height: 1.45; }
+  .term .p { color: #7ec16e; } .term .y { color: #f0d060; } .term .c { color: #6fb3ff; }
+  .termbar { background: #202020; color: #ddd; font-size: 7.5pt; padding: 6px 10px; border-radius: 8px 8px 0 0; }
+  /* filezilla */
+  .fz { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; background: #f0f0f0; font-size: 7.5pt; }
+  .fz .pane { background: #fff; border: 1px solid #c8c8c8; min-height: 150px; }
+  .fz .ph { background: #e8e8e8; padding: 3px 6px; font-weight: 600; border-bottom: 1px solid #c8c8c8; }
+  .fz .it { padding: 2px 8px; }
+  .fz .it.sel { background: #cfe3ff; }
+  .fzq { display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #f7f7f7; border-bottom: 1px solid #ddd; font-size: 7.5pt; }
+  .fzq .fi { min-height: 20px; padding: 2px 6px; font-size: 7.5pt; }
+  .diagram { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: center; text-align: center; font-size: 9pt; }
+  .box { border: 1.5px solid #6a7385; border-radius: 8px; padding: 8px; background: #fff; }
+  .box b { display: block; }
+  .arrow { font-size: 18pt; color: #6a7385; }
+  footer { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Anleitung: Penguin Jump auf deinem HestiaCP-Server</h1>
+<div class="meta">29.09.2026 · Mischa</div>
+
+<div class="toc">
+  <h3>Inhalt</h3>
+  <ol>
+    <li>Übersicht</li>
+    <li>Schritt 1: Subdomain im DNS eintragen</li>
+    <li>Schritt 2: Web-Domain anlegen</li>
+    <li>Schritt 3: SSL, PHP und Web-Ordner einstellen</li>
+    <li>Schritt 4: Datenbank anlegen</li>
+    <li>Schritt 5: Postfach für die Codes (freiwillig)</li>
+    <li>Schritt 6: Website-Paket holen</li>
+    <li>Schritt 7: Konfiguration erstellen</li>
+    <li>Schritt 8: Mit FileZilla hochladen</li>
+    <li>Schritt 9: Einrichten im Browser</li>
+    <li>Schritt 10: Spiel mit dem Server verbinden</li>
+    <li>Schritt 11: Neue Versionen einspielen</li>
+    <li>Sicherheit und Backups</li>
+    <li>Fehlersuche</li>
+    <li>Checkliste</li>
+  </ol>
+</div>
+
+<h2 style="margin-top:22px">Übersicht</h2>
+<p>Am Ende läuft die Website von Penguin Jump auf deinem Hetzner-Server unter einer eigenen Subdomain, zum Beispiel <code>spiel.domain-a.ch</code>. Dort gibt es:</p>
+<ul>
+  <li>die Startseite mit den Downloads (Windows-Installer, Linux, Android),</li>
+  <li>das Spiel im Browser unter <code>/play/</code>, die Community-Level und die Bestenlisten,</li>
+  <li>das Konto-Panel für Spieler unter <code>/konto/</code> und das Admin-Panel unter <code>/admin/</code>.</li>
+</ul>
+<div class="diagram">
+  <div class="box"><b>Spieler</b>Browser, Windows, Linux, Android</div>
+  <div class="box"><b>spiel.domain-a.ch</b>HestiaCP · PHP 8.3 · MariaDB<br><small>Website, API, Admin-Panel</small></div>
+  <div class="box"><b>GitHub Releases</b>Downloads (signiert)</div>
+</div>
+<p>Die Downloads selbst liegen weiterhin bei GitHub; dein Server liefert die Website, das Spiel im Browser, die Level, die Konten und die Bestenlisten. Rechne mit etwa 45 Minuten, plus Wartezeit, bis DNS und SSL greifen.</p>
+
+<h3>Was du brauchst</h3>
+<ul class="check">
+  <li>Deinen HestiaCP-Server aus der ersten Anleitung (Schritte 1–7 erledigt, Anmeldung als <code>web</code> klappt)</li>
+  <li>FileZilla (wie in der ersten Anleitung)</li>
+  <li>Eine Authenticator-App auf dem Handy (z. B. Aegis, 2FAS, Google oder Microsoft Authenticator)</li>
+  <li>Den Projektordner <code>Claude Game</code> auf deinem PC (für das Werkzeug „Konfiguration-Erstellen“)</li>
+  <li>Einen Passwort-Manager für die neuen Passwörter</li>
+</ul>
+
+<h3>Platzhalter in dieser Anleitung</h3>
+<table>
+  <tr><th>Platzhalter</th><th>Bedeutung</th><th>Beispiel</th></tr>
+  <tr><td><code>SPIEL-DOMAIN</code></td><td>Adresse der Spiel-Website (Subdomain)</td><td><code>spiel.domain-a.ch</code></td></tr>
+  <tr><td><code>domain-a.ch</code></td><td>Deine Hauptdomain aus der ersten Anleitung</td><td><code>jagdclub-xy.ch</code></td></tr>
+  <tr><td><code>SERVER-IP</code></td><td>Die IPv4-Adresse deines Servers</td><td><code>65.21.123.45</code></td></tr>
+  <tr><td><code>web</code></td><td>Dein HestiaCP-Benutzer für Websites</td><td><code>web</code></td></tr>
+</table>
+<div class="note">Die Bilder mit HestiaCP und FileZilla sind nachgestellte Ansichten mit Beispielwerten; die roten Nummern zeigen die Reihenfolge der Klicks. Die Bilder der Spiel-Website sind echte Aufnahmen.</div>
+
+<!-- ============================================================ 1 -->
+<section class="step">
+<h2>Schritt 1: Subdomain im DNS eintragen</h2>
+<p>Die Subdomain <code>spiel</code> soll auf deinen Server zeigen. Weil deine DNS-Zone auf dem eigenen Server liegt, trägst du das direkt in HestiaCP ein.</p>
+<ol>
+  <li>In HestiaCP als <code>web</code> anmelden (wie in der ersten Anleitung, Schritt 4.2).</li>
+  <li>Oben auf <b>DNS</b> → bei <code>domain-a.ch</code> auf <b>Einträge</b> → <b>Eintrag hinzufügen</b>.</li>
+  <li>Name: <code>spiel</code>, Typ: <code>A</code>, IP/Wert: <code>SERVER-IP</code> → <b>Speichern</b>.</li>
+</ol>
+<figure><div class="shot"><div class="win">
+  <div class="tabbar"><span class="dots"><i></i><i></i><i></i></span><span class="tab">DNS-Eintrag hinzufügen – Hestia</span></div>
+  <div class="url"><b>https://</b>server.domain-a.ch:8083/add/dns/?domain=domain-a.ch</div>
+  <div class="hnav"><span class="logo">hestia</span><span>WEB</span><span class="on">DNS</span><span>MAIL</span><span>DB</span><span>CRON</span><span>BACKUP</span><span class="right">web · Abmelden</span></div>
+  <div class="hbar"><span class="hbtn">← Zurück</span><span><span class="hsave">💾 Speichern</span><span class="n">4</span></span></div>
+  <div class="hbody"><div class="card"><h4>DNS-Eintrag hinzufügen <span class="muted">– domain-a.ch</span></h4>
+    <div class="fl">Eintrag / Name</div><div class="row"><div class="fi hl">spiel</div><span class="n">1</span></div>
+    <div class="fl">Typ</div><div class="row"><div class="fi">A</div><span class="n">2</span></div>
+    <div class="fl">IP oder Wert</div><div class="row"><div class="fi hl">65.21.123.45</div><span class="n">3</span></div>
+    <div class="fl">TTL</div><div class="fi">3600</div>
+  </div></div>
+</div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 1: HestiaCP: A-Eintrag für die Subdomain</figcaption></figure>
+<div class="note">Soll das Spiel eine <b>eigene Domain</b> bekommen (statt einer Subdomain), legst du sie wie in der ersten Anleitung (Schritt 5 und 6) an – mit DNS-Unterstützung und Nameserver-Umstellung bei Metanet – und überspringst diesen Schritt.</div>
+<p>Prüfen (nach ein paar Minuten) in PowerShell: <code>nslookup spiel.domain-a.ch</code> muss <code>SERVER-IP</code> zeigen.</p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section class="step">
+<h2>Schritt 2: Web-Domain anlegen</h2>
+<ol>
+  <li>Oben auf <b>WEB</b> → <b>Web-Domain hinzufügen</b>.</li>
+  <li>Domain: <code>spiel.domain-a.ch</code></li>
+  <li>IP-Adresse: <code>SERVER-IP</code></li>
+  <li><b>DNS-Unterstützung</b> und <b>Mail-Unterstützung</b> <b>nicht</b> anhaken – die Subdomain steckt schon in der Zone von <code>domain-a.ch</code>.</li>
+  <li><b>Speichern</b>.</li>
+</ol>
+<figure><div class="shot"><div class="win">
+  <div class="tabbar"><span class="dots"><i></i><i></i><i></i></span><span class="tab">Web-Domain hinzufügen – Hestia</span></div>
+  <div class="url"><b>https://</b>server.domain-a.ch:8083/add/web/</div>
+  <div class="hnav"><span class="logo">hestia</span><span class="on">WEB</span><span>DNS</span><span>MAIL</span><span>DB</span><span>CRON</span><span>BACKUP</span><span class="right">web · Abmelden</span></div>
+  <div class="hbar"><span class="hbtn">← Zurück</span><span><span class="hsave">💾 Speichern</span><span class="n">5</span></span></div>
+  <div class="hbody"><div class="card"><h4>Web-Domain hinzufügen <span class="n">1</span></h4>
+    <div class="fl">Domain</div><div class="row"><div class="fi hl">spiel.domain-a.ch</div><span class="n">2</span></div>
+    <div class="fl">IP-Adresse</div><div class="row"><div class="fi">65.21.123.45</div><span class="n">3</span></div>
+    <div class="cb"><span></span> DNS-Unterstützung aktivieren <span class="n">4</span></div>
+    <div class="cb"><span></span> Mail-Unterstützung aktivieren</div>
+  </div></div>
+</div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 2: HestiaCP: Web-Domain für das Spiel</figcaption></figure>
+<p>HestiaCP legt den Ordner <code>/home/web/web/spiel.domain-a.ch/public_html</code> an. Dorthin kommt später die Website.</p>
+</section>
+
+<!-- ============================================================ 3 -->
+<section class="step">
+<h2>Schritt 3: SSL, PHP und Web-Ordner einstellen</h2>
+<p>In der Liste unter <b>WEB</b> bei <code>spiel.domain-a.ch</code> auf <b>Bearbeiten</b> (Stift).</p>
+<h3>3.1 SSL (HTTPS) – erst wenn Schritt 1 greift</h3>
+<ol>
+  <li>Haken bei <b>SSL aktivieren</b>, dann <b>Let's Encrypt verwenden</b>.</li>
+  <li>Zusätzlich <b>Automatische HTTPS-Weiterleitung aktivieren</b> und <b>HSTS aktivieren</b>.</li>
+</ol>
+<h3>3.2 PHP-Version und Web-Ordner</h3>
+<ol start="3">
+  <li><b>Erweiterte Optionen</b> aufklappen.</li>
+  <li><b>Backend-Vorlage PHP-FPM</b>: <code>PHP-8_3</code> (oder neuer) wählen.</li>
+  <li>Haken bei <b>Benutzerdefiniertes Dokumentenstammverzeichnis</b> (Custom document root): Ziel-Domain <code>spiel.domain-a.ch</code>, Verzeichnis <code>public</code>.</li>
+  <li><b>Speichern</b>.</li>
+</ol>
+<figure><div class="shot"><div class="win">
+  <div class="tabbar"><span class="dots"><i></i><i></i><i></i></span><span class="tab">Web-Domain bearbeiten – Hestia</span></div>
+  <div class="url"><b>https://</b>server.domain-a.ch:8083/edit/web/?domain=spiel.domain-a.ch</div>
+  <div class="hnav"><span class="logo">hestia</span><span class="on">WEB</span><span>DNS</span><span>MAIL</span><span>DB</span><span>CRON</span><span>BACKUP</span><span class="right">web · Abmelden</span></div>
+  <div class="hbar"><span class="hbtn">← Zurück</span><span><span class="hsave">💾 Speichern</span><span class="n">6</span></span></div>
+  <div class="hbody"><div class="card"><h4>Web-Domain bearbeiten: spiel.domain-a.ch</h4>
+    <div class="cb"><span class="x"></span> SSL aktivieren <span class="n">1</span></div>
+    <div class="cb" style="margin-left:18px"><span class="x"></span> Let's Encrypt verwenden</div>
+    <div class="cb" style="margin-left:18px"><span class="x"></span> Automatische HTTPS-Weiterleitung aktivieren <span class="n">2</span></div>
+    <div class="cb" style="margin-left:18px"><span class="x"></span> HSTS aktivieren</div>
+    <div class="adv">▾ Erweiterte Optionen <span class="n">3</span></div>
+    <div class="fl">Backend-Vorlage PHP-FPM</div><div class="row"><div class="fi hl">PHP-8_3</div><span class="n">4</span></div>
+    <div class="cb"><span class="x"></span> Benutzerdefiniertes Dokumentenstammverzeichnis <span class="n">5</span></div>
+    <div class="fl">Ziel-Domain / Verzeichnis</div><div class="row"><div class="fi">spiel.domain-a.ch</div>&nbsp;<div class="fi hl">public</div></div>
+  </div></div>
+</div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 3: HestiaCP: SSL, PHP-Version und Web-Ordner</figcaption></figure>
+<div class="note"><b>Warum der Ordner <code>public</code>?</b> So sind nur die öffentlichen Dateien im Internet erreichbar; Programmcode, Konfiguration und Level liegen eine Ebene darüber. Findest du die Option nicht, geht es auch ohne: Dann sperrt eine mitgelieferte <code>.htaccess</code> die übrigen Ordner.</div>
+<div class="warn">Die Proxy-Vorlage (NGINX) muss auf <code>default</code> bleiben. Eine Vorlage wie „force-https“ ist in Ordnung, aber keine, die nur statische Dateien ausliefert.</div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section class="step">
+<h2>Schritt 4: Datenbank anlegen</h2>
+<ol>
+  <li>Oben auf <b>DB</b> → <b>Datenbank hinzufügen</b>.</li>
+  <li>Datenbank: <code>spiel</code> – HestiaCP macht daraus <code>web_spiel</code>.</li>
+  <li>Benutzername: <code>spiel</code> – wird zu <code>web_spiel</code>.</li>
+  <li>Passwort: <b>Generieren</b> und sofort im Passwort-Manager speichern.</li>
+  <li>Typ: <code>mysql</code> (das ist MariaDB) → <b>Speichern</b>.</li>
+</ol>
+<figure><div class="shot"><div class="win">
+  <div class="tabbar"><span class="dots"><i></i><i></i><i></i></span><span class="tab">Datenbank hinzufügen – Hestia</span></div>
+  <div class="url"><b>https://</b>server.domain-a.ch:8083/add/db/</div>
+  <div class="hnav"><span class="logo">hestia</span><span>WEB</span><span>DNS</span><span>MAIL</span><span class="on">DB</span><span>CRON</span><span>BACKUP</span><span class="right">web · Abmelden</span></div>
+  <div class="hbar"><span class="hbtn">← Zurück</span><span><span class="hsave">💾 Speichern</span><span class="n">5</span></span></div>
+  <div class="hbody"><div class="card"><h4>Datenbank hinzufügen</h4>
+    <div class="fl">Datenbank <span style="color:#999">(Präfix web_ wird ergänzt)</span></div><div class="row"><div class="fi hl">spiel</div><span class="n">1</span></div>
+    <div class="fl">Benutzername</div><div class="row"><div class="fi hl">spiel</div><span class="n">2</span></div>
+    <div class="fl">Passwort</div><div class="row"><div class="fi">•••••••••••••••••• <span class="gen">Generieren</span></div><span class="n">3</span></div>
+    <div class="fl">Typ</div><div class="row"><div class="fi">mysql</div><span class="n">4</span></div>
+  </div></div>
+</div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 4: HestiaCP: Datenbank für das Spiel</figcaption></figure>
+<table>
+  <tr><th>Notiere</th><th>Beispiel</th></tr>
+  <tr><td>Datenbank</td><td><code>web_spiel</code></td></tr>
+  <tr><td>Benutzer</td><td><code>web_spiel</code></td></tr>
+  <tr><td>Passwort</td><td>(aus dem Passwort-Manager)</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ 5 -->
+<section class="step">
+<h2>Schritt 5: Postfach für die Codes (freiwillig)</h2>
+<p>Spieler können beim Konto freiwillig eine E-Mail-Adresse hinterlegen. Dann schickt die Website Bestätigungs-Codes und Codes für ein vergessenes Passwort. Ohne Postfach funktioniert alles andere trotzdem – Spieler setzen ihr Passwort dann mit ihrem Wiederherstellungs-Code zurück.</p>
+<ol>
+  <li>Oben auf <b>MAIL</b>. Gibt es <code>domain-a.ch</code> noch nicht als Mail-Domain: <b>Mail-Domain hinzufügen</b> → <code>domain-a.ch</code> (mit DKIM) → <b>Speichern</b>.</li>
+  <li>Bei <code>domain-a.ch</code> auf <b>Konten</b> → <b>Konto hinzufügen</b>.</li>
+  <li>Konto: <code>spiel</code> → Adresse <code>spiel@domain-a.ch</code>. Passwort <b>generieren</b> und speichern.</li>
+  <li><b>Speichern</b>. Rechts zeigt HestiaCP die Zugangsdaten (SMTP-Server, Port).</li>
+</ol>
+<table>
+  <tr><th>Für Schritt 7</th><th>Wert</th></tr>
+  <tr><td>Mailserver</td><td><code>mail.domain-a.ch</code> (oder der Name, den HestiaCP bei SMTP anzeigt)</td></tr>
+  <tr><td>Port / Verschlüsselung</td><td><code>587</code> / STARTTLS</td></tr>
+  <tr><td>Benutzer</td><td><code>spiel@domain-a.ch</code></td></tr>
+  <tr><td>Passwort</td><td>(aus dem Passwort-Manager)</td></tr>
+</table>
+<div class="note">Damit die Mails nicht im Spam landen, müssen in der DNS-Zone von <code>domain-a.ch</code> die Einträge für <b>MX</b>, <b>SPF</b> (TXT <code>v=spf1 …</code>) und <b>DKIM</b> stehen. HestiaCP legt sie beim Anlegen der Mail-Domain automatisch an, wenn die Domain seine DNS-Zone nutzt.</div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section class="step">
+<h2>Schritt 6: Website-Paket holen</h2>
+<p>Bei jedem Hochladen des Codes auf GitHub baut GitHub automatisch eine neue Version – mit fertigem Website-Paket.</p>
+<ol>
+  <li>Öffne <code>github.com/MischaFierz/penguin-jump/releases</code> und nimm die oberste (neueste) Version.</li>
+  <li>Lade <code>PenguinJump-website.zip</code> herunter.</li>
+  <li>Entpacke das ZIP in einen Ordner, z. B. <code>Downloads\PenguinJump-website</code>.</li>
+</ol>
+<p>Darin findest du diese Ordner:</p>
+<table>
+  <tr><th>Ordner</th><th>Inhalt</th><th>Öffentlich?</th></tr>
+  <tr><td><code>public</code></td><td>Startseite, Spiel (<code>play</code>), Konto- und Admin-Panel, <code>version.json</code></td><td>ja</td></tr>
+  <tr><td><code>src</code>, <code>templates</code>, <code>migrations</code></td><td>Programmcode der Website</td><td>nein</td></tr>
+  <tr><td><code>data</code></td><td>Start-Level und Texte</td><td>nein</td></tr>
+  <tr><td><code>config</code></td><td>Konfiguration (Schritt 7)</td><td>nein</td></tr>
+</table>
+<div class="note">Ohne GitHub geht es auch lokal: Doppelklick auf <code>Website-Paket-Bauen.cmd</code> im Projektordner baut <code>dist\website</code>. Dieses Paket enthält aber keine signierte <code>version.json</code> – die automatischen Updates der Spiele funktionieren nur mit den Paketen von GitHub.</div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section class="step">
+<h2>Schritt 7: Konfiguration erstellen</h2>
+<p>Die Datei <code>config/config.php</code> enthält die Zugangsdaten und zwei geheime Schlüssel. Ein Werkzeug erstellt sie für dich:</p>
+<ol>
+  <li>Im Projektordner eine Eingabeaufforderung öffnen (im Explorer in die Adressleiste <code>cmd</code> tippen, Enter).</li>
+  <li>Eingeben: <code>Konfiguration-Erstellen.cmd "C:\Users\…\Downloads\PenguinJump-website"</code> (dein Ordner aus Schritt 6).</li>
+  <li>Die Fragen beantworten: Datenbank aus Schritt 4, Postfach aus Schritt 5 (leer lassen = ohne E-Mail).</li>
+  <li>Am Ende steht der <b>Setup-Token</b>. Notiere ihn – du brauchst ihn in Schritt 9.</li>
+</ol>
+<figure><div class="shot"><div class="termbar">C:\Windows\System32\cmd.exe</div><div class="term"><span class="p">C:\...\Claude Game&gt;</span> Konfiguration-Erstellen.cmd "C:\Users\mischa\Downloads\PenguinJump-website"
+
+Konfiguration fuer die Website
+-------------------------------
+Datenbank-Name (z.B. web_spiel): <span class="y">web_spiel</span>            <span class="n">1</span>
+Datenbank-Benutzer (z.B. web_spiel) [web_spiel]:
+Datenbank-Passwort: <span class="y">********</span>                        <span class="n">2</span>
+
+E-Mail (freiwillig, fuer Bestaetigungs- und Passwort-Codes). Leer lassen = ohne E-Mail.
+Mailserver (z.B. mail.domain-a.ch): <span class="y">mail.domain-a.ch</span>   <span class="n">3</span>
+Mail-Benutzer (z.B. spiel@domain-a.ch): <span class="y">spiel@domain-a.ch</span>
+Mail-Passwort: <span class="y">********</span>
+Absender-Adresse [spiel@domain-a.ch]:
+
+Gespeichert: C:\Users\mischa\Downloads\PenguinJump-website\config\config.php
+
+<span class="c">SETUP-TOKEN (fuer https://DEINE-SPIEL-DOMAIN/setup):  d3da8de16d5a1acf8d616fa32eadff35</span>   <span class="n">4</span></div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 5: Konfiguration-Erstellen.cmd</figcaption></figure>
+<div class="warn"><code>config.php</code> enthält Passwörter. Nie per E-Mail oder Chat verschicken und nicht ins Git-Projekt kopieren. Eine Sicherheitskopie gehört in den Passwort-Manager.</div>
+</section>
+
+<!-- ============================================================ 8 -->
+<section class="step">
+<h2>Schritt 8: Mit FileZilla hochladen</h2>
+<ol>
+  <li>Falls noch nicht vorhanden: In HestiaCP bei <b>WEB</b> → <code>spiel.domain-a.ch</code> → <b>Bearbeiten</b> → <b>Zusätzliches FTP-Konto</b> anlegen (wie in der ersten Anleitung, Schritt 7). Benutzer z. B. <code>web_spielftp</code>, Pfad leer lassen.</li>
+  <li>FileZilla öffnen, oben eintragen: Server <code>ftpes://spiel.domain-a.ch</code>, Benutzer und Passwort des FTP-Kontos, Port leer → <b>Verbinden</b>.</li>
+  <li>Rechts (Server) in den Ordner <code>public_html</code> wechseln und die Standard-Datei <code>index.html</code> löschen.</li>
+  <li>Links (dein PC) in den Ordner <code>PenguinJump-website</code> wechseln, <b>alles markieren</b> (Strg+A) und nach rechts in <code>public_html</code> ziehen.</li>
+</ol>
+<figure><div class="shot"><div class="win">
+  <div class="tabbar"><span class="tab">spiel – web_spielftp@spiel.domain-a.ch – FileZilla</span></div>
+  <div class="fzq">Server: <div class="fi">ftpes://spiel.domain-a.ch</div> Benutzer: <div class="fi">web_spielftp</div> Passwort: <div class="fi">••••••••</div><span class="hbtn">Verbinden</span><span class="n">2</span></div>
+  <div class="fz">
+    <div class="pane"><div class="ph">Lokal: C:\Users\mischa\Downloads\PenguinJump-website\</div>
+      <div class="it sel">📁 config</div><div class="it sel">📁 data</div><div class="it sel">📁 migrations</div><div class="it sel">📁 public</div><div class="it sel">📁 src</div><div class="it sel">📁 templates</div><div class="it sel">📄 .htaccess <span class="n">4</span></div></div>
+    <div class="pane"><div class="ph">Server: /public_html <span class="n">3</span></div>
+      <div class="it" style="text-decoration:line-through;color:#999">📄 index.html</div><div class="it">(hierher ziehen)</div></div>
+  </div>
+</div><span class="tag">Nachgestellte Ansicht · Beispielwerte</span></div>
+<figcaption>Bild 6: FileZilla: alles in public_html ziehen</figcaption></figure>
+<p>Danach liegt z. B. <code>public_html/public/index.php</code> und <code>public_html/config/config.php</code> auf dem Server. Wichtig: Auch die unsichtbaren <code>.htaccess</code>-Dateien müssen mit (FileZilla: Menü <b>Server → Anzeige versteckter Dateien erzwingen</b>).</p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section class="step">
+<h2>Schritt 9: Einrichten im Browser</h2>
+<ol>
+  <li>Öffne <code>https://spiel.domain-a.ch/setup</code>.</li>
+  <li>Setup-Token aus Schritt 7 eintragen, einen <b>Benutzernamen für das Admin-Panel</b> und ein starkes Passwort wählen → <b>Weiter</b>. Die Datenbank-Tabellen und die 12 Hauptlevel werden jetzt angelegt.</li>
+</ol>
+<figure><img src="img/setup.png" alt=""><figcaption>Bild 7: Ersteinrichtung (echte Aufnahme)</figcaption></figure>
+<ol start="3">
+  <li>Du landest im Admin-Panel. Melde dich mit dem neuen Zugang an.</li>
+  <li><b>Zwei-Faktor einrichten</b>: In der Authenticator-App „Konto hinzufügen → Schlüssel eingeben“ wählen und den angezeigten Schlüssel abtippen. Den 6-stelligen Code aus der App eingeben → <b>Bestätigen</b>.</li>
+</ol>
+<figure><img src="img/admin-2fa.png" alt="" style="max-height:300px"><figcaption>Bild 8: Zwei-Faktor einrichten (echte Aufnahme, Beispielschlüssel)</figcaption></figure>
+<div class="ok">Geschafft: Unter <b>Hauptlevel</b> bearbeitest und veröffentlichst du die Level, unter <b>Admin-Benutzer</b> legst du weitere Personen mit Stufen und Rechten an (sie setzen bei der ersten Anmeldung ein eigenes Passwort und richten 2FA ein).</div>
+</section>
+
+<!-- ============================================================ 10 -->
+<section class="step">
+<h2>Schritt 10: Spiel mit dem Server verbinden</h2>
+<p>Das Spiel im Browser (<code>/play/</code>) findet den Server von selbst. Die Windows-, Linux- und Android-Version brauchen die Adresse einmal fest eingebaut:</p>
+<ol>
+  <li>Im Projektordner die Datei <code>game.json</code> öffnen.</li>
+  <li><code>"baseUrl": ""</code> ändern zu <code>"baseUrl": "https://spiel.domain-a.ch"</code> und speichern.</li>
+  <li>Die Änderung auf GitHub hochladen (oder Claude sagen: „baseUrl ist https://spiel.domain-a.ch, bitte pushen“).</li>
+  <li>GitHub baut eine neue Version. Ihr <code>PenguinJump-website.zip</code> wie in Schritt 11 hochladen.</li>
+</ol>
+<p>Ab dieser Version laden die Spiele die Hauptlevel vom Server, zeigen Community-Level und Bestenlisten und installieren neue Versionen selbst.</p>
+</section>
+
+<!-- ============================================================ 11 -->
+<section class="step">
+<h2>Schritt 11: Neue Versionen einspielen</h2>
+<ol>
+  <li>Neuestes <code>PenguinJump-website.zip</code> von GitHub holen und entpacken.</li>
+  <li><b>Den Ordner <code>config</code> im entpackten Paket löschen</b> – so bleibt deine <code>config.php</code> auf dem Server unberührt.</li>
+  <li>Alles mit FileZilla nach <code>public_html</code> ziehen und bei der Frage <b>Überschreiben</b> wählen.</li>
+  <li>Einmal <code>https://spiel.domain-a.ch/setup?update=SETUP-TOKEN</code> öffnen. Das ergänzt neue Datenbank-Tabellen, falls die Version welche mitbringt („Datenbank ist auf dem neuesten Stand“).</li>
+</ol>
+<div class="note">Spieler, die das Spiel installiert haben, bekommen die neue Version beim nächsten Start angeboten – aber erst, wenn die neue <code>version.json</code> auf deinem Server liegt. Die Hauptlevel änderst du dagegen jederzeit direkt im Admin-Panel, ohne neue Version.</div>
+</section>
+
+<!-- ============================================================ 12 -->
+<section class="step">
+<h2>Sicherheit und Backups</h2>
+<ul>
+  <li><b>Schlüssel sichern:</b> Der Ordner <code>Claude Game-keys</code> neben dem Projekt (Signier-Schlüssel für Updates und Android) gehört auf einen USB-Stick oder in den Passwort-Manager. Ohne ihn lassen sich installierte Spiele nicht mehr aktualisieren.</li>
+  <li><b>Backups:</b> HestiaCP sichert unter <b>BACKUP</b> täglich Website und Datenbank. Lade ab und zu eines herunter.</li>
+  <li><b>Admin-Zugänge:</b> Jeder hat seinen eigenen Zugang mit 2FA. Gib Stufen sparsam: „Level-Editor“ darf nur Hauptlevel bearbeiten, „Moderator“ nur Community und Bestenlisten.</li>
+  <li><b>Verlauf:</b> Unter <b>Verlauf</b> im Admin-Panel steht jede Änderung und jeder abgelehnte (geschummelte) Lauf.</li>
+  <li><b>Updates des Servers:</b> Wie in der ersten Anleitung (Schritt 10) – <code>apt update &amp;&amp; apt upgrade</code> regelmässig.</li>
+</ul>
+<h2 style="margin-top:26px">Fehlersuche</h2>
+<table>
+  <tr><th>Problem</th><th>Lösung</th></tr>
+  <tr><td>„Server not configured yet“</td><td><code>config/config.php</code> fehlt auf dem Server – Schritt 7 und 8 prüfen.</td></tr>
+  <tr><td>Weisse Seite oder Fehler 500</td><td>HestiaCP → WEB → spiel.domain-a.ch → <b>Logs</b> (Fehlerprotokoll). Meist falsche Datenbank-Angaben in <code>config.php</code> oder PHP älter als 8.1.</td></tr>
+  <tr><td>Seite zeigt Ordnerinhalt oder Quelltext</td><td>Die <code>.htaccess</code>-Dateien fehlen (versteckte Dateien in FileZilla anzeigen) oder der Web-Ordner zeigt nicht auf <code>public</code>.</td></tr>
+  <tr><td>Fehler zu <code>sodium</code> oder <code>pdo_mysql</code></td><td>PHP-Version in Schritt 3.2 auf <code>PHP-8_3</code> stellen; auf dem Server: <code>apt install php8.3-mysql</code>.</td></tr>
+  <tr><td>Zertifikatsfehler / kein HTTPS</td><td>DNS-Eintrag (Schritt 1) wirkt noch nicht. Warten, dann SSL in Schritt 3.1 erneut speichern.</td></tr>
+  <tr><td>Keine E-Mails</td><td>Admin-Panel → Einstellungen → <b>Test-E-Mail senden</b>. Fehlermeldung lesen; Postfach-Daten in <code>config.php</code> prüfen, Spam-Ordner prüfen.</td></tr>
+  <tr><td>2FA-Code wird abgelehnt</td><td>Uhrzeit auf dem Handy automatisch stellen lassen. Ein anderer Admin kann unter Admin-Benutzer „2FA zurücksetzen“.</td></tr>
+  <tr><td>Setup-Token vergessen</td><td>Steht in <code>config/config.php</code> auf dem Server (<code>setup_token</code>).</td></tr>
+</table>
+</section>
+
+<section class="step">
+<h2>Checkliste</h2>
+<ul class="check">
+  <li>DNS: <code>spiel</code> zeigt auf <code>SERVER-IP</code> (Schritt 1)</li>
+  <li>Web-Domain <code>spiel.domain-a.ch</code> angelegt (Schritt 2)</li>
+  <li>SSL mit Let's Encrypt, HTTPS-Weiterleitung und HSTS aktiv (Schritt 3.1)</li>
+  <li>PHP 8.3 und Web-Ordner <code>public</code> eingestellt (Schritt 3.2)</li>
+  <li>Datenbank <code>web_spiel</code> angelegt, Passwort gespeichert (Schritt 4)</li>
+  <li>Freiwillig: Postfach <code>spiel@domain-a.ch</code> (Schritt 5)</li>
+  <li>Website-Paket geholt und entpackt (Schritt 6)</li>
+  <li><code>config.php</code> erstellt, Setup-Token notiert (Schritt 7)</li>
+  <li>Alles inklusive <code>.htaccess</code> in <code>public_html</code> hochgeladen (Schritt 8)</li>
+  <li>Setup ausgeführt, Admin-Zugang mit 2FA eingerichtet (Schritt 9)</li>
+  <li><code>baseUrl</code> in <code>game.json</code> eingetragen und neue Version hochgeladen (Schritt 10)</li>
+  <li>Test: Konto unter <code>/konto/</code> erstellen, ein Level im Browser-Spiel bauen und veröffentlichen</li>
+  <li>Schlüssel-Ordner <code>Claude Game-keys</code> gesichert</li>
+</ul>
+<h2 style="margin-top:26px">Kurzübersicht der Adressen</h2>
+<table>
+  <tr><th>Adresse</th><th>Wofür</th></tr>
+  <tr><td><code>https://spiel.domain-a.ch/</code></td><td>Startseite mit Downloads</td></tr>
+  <tr><td><code>https://spiel.domain-a.ch/play/</code></td><td>Spiel im Browser (auch Level-Editor und Community)</td></tr>
+  <tr><td><code>https://spiel.domain-a.ch/community</code></td><td>Community-Level</td></tr>
+  <tr><td><code>https://spiel.domain-a.ch/konto/</code></td><td>Konto für Spieler (Anmelden, E-Mail, eigene Level)</td></tr>
+  <tr><td><code>https://spiel.domain-a.ch/admin/</code></td><td>Admin-Panel</td></tr>
+  <tr><td><code>https://spiel.domain-a.ch/setup?update=TOKEN</code></td><td>Datenbank nach einer neuen Version aktualisieren</td></tr>
+</table>
+</section>
+
+</body>
+</html>

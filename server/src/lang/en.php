@@ -1,5 +1,8 @@
 <?php
 return [
+    'home.windows_setup' => "Windows (installer)",
+    'home.windows_zip' => "Windows (without installation)",
+    'home.setup_hint' => "Double-click to install - no administrator rights needed. Start menu and desktop shortcut included; the game updates itself.",
     'nav.community' => "Community",
     'community.intro' => "Levels built by players. Every published level has been finished by its author - so it can be done!",
     'community.build' => "Build your own level",

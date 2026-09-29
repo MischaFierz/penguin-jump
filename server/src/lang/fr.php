@@ -1,5 +1,8 @@
 <?php
 return [
+    'home.windows_setup' => "Windows (installation)",
+    'home.windows_zip' => "Windows (sans installation)",
+    'home.setup_hint' => "Double-clic pour installer – sans droits d'administrateur. Raccourcis dans le menu Démarrer et sur le bureau ; le jeu se met à jour tout seul.",
     'nav.community' => "Communauté",
     'community.intro' => "Des niveaux créés par les joueurs. Chaque niveau publié a été terminé par son auteur – il est donc faisable !",
     'community.build' => "Créer ton niveau",

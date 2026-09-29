@@ -106,6 +106,30 @@ jobs:
           path: ${{ needs.version.outputs.slug }}-${{ matrix.rid }}.zip
           if-no-files-found: error
 
+  installer:
+    needs: [version, tests]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Windows installer (.msi)
+        shell: pwsh
+        env:
+          SAVE_HMAC_KEY: ${{ secrets.SAVE_HMAC_KEY }}
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          node tools/build-installer.mjs ${{ needs.version.outputs.version }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer
+          path: dist/*-Setup.msi
+          if-no-files-found: error
+
   android:
     needs: [version, tests]
     runs-on: ubuntu-latest
@@ -154,7 +178,7 @@ jobs:
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [version, desktop, android]
+    needs: [version, desktop, android, installer]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,7 +202,7 @@ jobs:
           node tools/render-icons.mjs
           node tools/build-server.mjs dist/website "$VERSION"
           # macOS builds are made but not published yet
-          published=(dist/files/*-win-x64.zip dist/files/*-linux-x64.zip dist/files/*-android.apk)
+          published=(dist/files/*-win-x64.zip dist/files/*-linux-x64.zip dist/files/*-android.apk dist/files/*-Setup.msi)
           node tools/make-manifest.mjs dist/website/public "$VERSION" \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}" "${published[@]}"
           (cd dist/website && zip -r -9 -q "../files/${SLUG}-website.zip" .)
@@ -190,7 +214,7 @@ jobs:
           cd dist/files
           gh release create "v${VERSION}" --title "${SLUG} ${VERSION}" --target "$GITHUB_SHA" \
             --notes "Automatic build of ${GITHUB_SHA::7}. Upload ${SLUG}-website.zip to the webspace to publish this version (see README)." \
-            ./*-win-x64.zip ./*-linux-x64.zip ./*-android.apk "./${SLUG}-website.zip" SHA256SUMS.txt
+            ./*-Setup.msi ./*-win-x64.zip ./*-linux-x64.zip ./*-android.apk "./${SLUG}-website.zip" SHA256SUMS.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: website

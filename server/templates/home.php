@@ -2,7 +2,7 @@
 use App\Config;
 $v = $version ?? null;
 $dl = is_array($v['downloads'] ?? null) ? $v['downloads'] : [];
-$labels = ['win-x64' => t('home.windows'), 'linux-x64' => t('home.linux'), 'android' => t('home.android')];
+$labels = ['win-msi' => t('home.windows_setup'), 'win-x64' => t('home.windows_zip'), 'linux-x64' => t('home.linux'), 'android' => t('home.android')];
 ?>
 <section class="hero">
   <img src="<?= h(url('/assets/icon.svg')) ?>" alt="" width="140" height="140">
@@ -24,7 +24,7 @@ $labels = ['win-x64' => t('home.windows'), 'linux-x64' => t('home.linux'), 'andr
         <div class="card">
           <h3><?= h($label) ?></h3>
           <?php if (preg_match('#^https://#', $u)): ?><a class="button" href="<?= h($u) ?>" rel="noopener noreferrer">⬇ <?= h(basename((string) parse_url($u, PHP_URL_PATH))) ?></a><?php endif; ?>
-          <p class="muted small"><?= h($key === 'android' ? t('home.android_hint') : t('home.desktop_hint')) ?></p>
+          <p class="muted small"><?= h($key === 'android' ? t('home.android_hint') : ($key === 'win-msi' ? t('home.setup_hint') : t('home.desktop_hint'))) ?></p>
           <?php if (!empty($dl[$key]['sha256'])): ?><details><summary class="small"><?= h(t('home.checksum')) ?></summary><code class="hash"><?= h($dl[$key]['sha256']) ?></code></details><?php endif; ?>
         </div>
       <?php endforeach; ?>

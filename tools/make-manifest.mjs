@@ -24,6 +24,7 @@ for (const f of files) {
   const m = /-(win-x64|linux-x64|osx-x64|osx-arm64)\.zip$/.exec(name);
   if (m) downloads[m[1]] = { url, sha256, size: fs.statSync(f).size, exe: m[1].startsWith('win') ? `${slug(game.name)}.exe` : slug(game.name) };
   else if (name.endsWith('.apk')) downloads.android = { url, sha256, size: fs.statSync(f).size };
+  else if (name.endsWith('.msi')) downloads['win-msi'] = { url, sha256, size: fs.statSync(f).size }; // first install on Windows (the updater uses the zip)
 }
 const manifest = Buffer.from(JSON.stringify({ name: game.name, version, date: new Date().toISOString(), downloads }, null, 2) + '\n');
 const sig = crypto.sign('sha256', manifest, { key, dsaEncoding: 'ieee-p1363' }).toString('base64');

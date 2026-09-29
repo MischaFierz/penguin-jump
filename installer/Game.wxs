@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windows installer for the game (WiX 5).
+
+  Installs without administrator rights into the user profile
+  (%LOCALAPPDATA%\Programs\<name>), adds a Start menu entry, a desktop shortcut and an entry in
+  "Apps & Features" for uninstalling. The .exe contains the .NET runtime - nothing else is needed.
+  The in-game updater keeps working because the folder belongs to the user.
+
+  Build: see Installer-Bauen.cmd (locally) or the "installer" job in .github/workflows/build.yml.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package Name="$(var.Name)"
+             Manufacturer="$(var.Name)"
+             Version="$(var.Version)"
+             UpgradeCode="8d6e337b-bf4d-476a-8a03-1a335a8f57cd"
+             Scope="perUser"
+             Compressed="yes"
+             InstallerVersion="500">
+
+        <MajorUpgrade AllowSameVersionUpgrades="yes"
+                      DowngradeErrorMessage="A newer version of $(var.Name) is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+
+        <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
+        <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+        <Property Id="ARPNOREPAIR" Value="1" />
+        <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
+
+        <StandardDirectory Id="LocalAppDataFolder">
+            <Directory Id="ProgramsFolder" Name="Programs">
+                <Directory Id="INSTALLFOLDER" Name="$(var.Name)" />
+            </Directory>
+        </StandardDirectory>
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="AppMenuFolder" Name="$(var.Name)" />
+        </StandardDirectory>
+        <StandardDirectory Id="DesktopFolder" />
+
+        <Component Id="MainExecutable" Directory="INSTALLFOLDER" Guid="d911fa27-f58a-42f8-9979-b78eae71e65c">
+            <!-- the shortcuts must be inside <File>, otherwise they point to the folder instead of the game -->
+            <File Id="GameExe" Name="$(var.ExeName)" Source="$(var.ExeFile)" KeyPath="yes">
+                <Shortcut Id="StartMenuShortcut" Directory="AppMenuFolder" Name="$(var.Name)"
+                          WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" Advertise="no" />
+                <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="$(var.Name)"
+                          WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" Advertise="no" />
+            </File>
+            <RemoveFolder Id="RemoveAppMenuFolder" Directory="AppMenuFolder" On="uninstall" />
+            <!-- files the updater leaves behind (*.old) are removed on uninstall -->
+            <RemoveFile Id="RemoveOldFiles" Directory="INSTALLFOLDER" Name="*.old" On="uninstall" />
+        </Component>
+
+        <Feature Id="Main" Title="$(var.Name)" Level="1">
+            <ComponentRef Id="MainExecutable" />
+        </Feature>
+    </Package>
+</Wix>

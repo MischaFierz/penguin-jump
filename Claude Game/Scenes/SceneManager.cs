@@ -57,5 +57,4 @@ public static class Session
 {
     public const int StartLives = 3;
     public static int Lives = StartLives;
-    public static List<string> Levels = new();
 }

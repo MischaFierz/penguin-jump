@@ -34,6 +34,7 @@ public static class Program
 
         Updater.CleanupOldFiles();
         SaveData.Load();
+        Game.LevelRepo.Init();
 
         // optional: "--screenshot <file> [scene]" renders a few frames in a hidden, silent window and saves a PNG (used for testing)
         string? shot = args.Length >= 2 && args[0] == "--screenshot" ? args[1] : null;
@@ -117,12 +118,11 @@ public static class Program
 
     private static IScene DebugScene(string name)
     {
-        Session.Levels = Game.LevelData.Index();
-        if (name.StartsWith("level:"))
-        {
-            int idx = Session.Levels.FindIndex(l => l.Contains(name[6..].Replace('-', '_')));
-            return new PlayScene(Math.Max(0, idx));
-        }
+        if (name.StartsWith("level:")) return new PlayScene(Math.Max(0, Game.LevelRepo.IndexOf(name[6..])));
+        if (name == "editor") return new EditorScene(EditorDoc.New());
+        if (name == "editor-list") return new EditorListScene();
+        if (name == "community") return new CommunityScene();
+        if (name.StartsWith("community:")) return new CommunityLevelScene(name[10..], () => new CommunityScene());
         if (name.StartsWith("lang:"))
         {
             Loc.Set(Loc.All.First(l => l.Code == name[5..]));

@@ -13,6 +13,27 @@ server-side verification. One code base per platform, shared levels and translat
 
 The game name, package id, server address and update key live in **`game.json`** - change them there.
 
+## Features
+
+* **Level editor** in the browser/Android version and in the desktop game: build, test, save on the device or online.
+* **Community levels**: publish your level (only possible after finishing it yourself - the server replays the run),
+  browse by most liked / newest / most played, search, like, report, leaderboard per level.
+* **Main levels come from the server**: admins edit and publish them in the admin editor, games load the new level pack
+  at start (cached for offline play) - no new game version needed.
+* **Accounts** (optional) with optional e-mail (confirmation codes, password reset) or recovery code.
+* **Admin panel** `/admin/` (like School Manager): own panel users with roles, permissions and groups, 2FA, history;
+  main levels, community moderation, leaderboards, player accounts, settings. **Account panel** `/konto/` for players.
+
+## Double-click tools (Windows)
+
+| File | What it does |
+|---|---|
+| `Installer-Bauen.cmd` | Builds `distPenguinJump-Setup.msi` (per-user install, Start menu + desktop, no admin rights) |
+| `Lokaler-Testserver.cmd` | Runs the complete website with database on this PC (portable PHP, nothing installed) |
+| `Website-Paket-Bauen.cmd` | Builds the upload folder `distwebsite` + ZIP |
+| `Konfiguration-Erstellen.cmd` | Creates `config/config.php` for the server (asks for database/mail, generates secrets) |
+| `Anleitung-Hosting.pdf` | Step-by-step guide for the HestiaCP server (German, printable) |
+
 ## How cheating is prevented
 
 * **Highscores are replayed on the server.** The game records the player's inputs (6 bits per 1/120 s tick).
@@ -36,6 +57,8 @@ code/config/data outside the web root, account deletion (all data) for players.
 
 ## Setting up the webspace (one time)
 
+The detailed, printable guide for the HestiaCP server is **`Anleitung-Hosting.pdf`**. Short version:
+
 1. Hosting with PHP 8.1+ (extensions `pdo_mysql`, `sodium`, `mbstring`) and a MySQL/MariaDB database. Create the
    database and a user that only has rights on it. Enable HTTPS (Let's Encrypt) for the domain.
 2. Put your domain into `game.json` → `"baseUrl": "https://your-domain.ch"` and push (the desktop and Android
@@ -44,11 +67,12 @@ code/config/data outside the web root, account deletion (all data) for players.
    Best: let the domain point to the **`public`** folder. If the hosting cannot do that, upload everything into the
    web root - the root `.htaccess` then routes all requests into `public/` and blocks the other folders.
 4. Copy `config/config.example.php` to `config/config.php` and fill it in (database, `app_secret`, `setup_token`).
-5. Open `https://your-domain.ch/setup`, enter the setup token and create the admin account.
-   Log in, scan the 2FA key into an authenticator app. Done.
+5. Open `https://your-domain.ch/setup`, enter the setup token and create the first admin panel user (owner).
+   Sign in at `/admin/` and add the 2FA key to an authenticator app. Done.
 
 **New versions:** every push to `main` builds and tests everything and creates a GitHub release. To publish it,
-upload the new `PenguinJump-website.zip` (keep your `config/config.php`). Players' games then offer the update.
+upload the new `PenguinJump-website.zip` (without its `config` folder, so your `config/config.php` stays), then open
+`/setup?update=<setup token>` once to apply database changes. Players' games then offer the update.
 
 ## GitHub secrets
 

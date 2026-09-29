@@ -4,11 +4,19 @@ using Raylib_cs;
 
 namespace Platformer.Scenes;
 
+/// <summary>A level that is not one of the main levels: a community level or an editor test run.</summary>
+public sealed record CustomLevel(string Code, LevelData Data, string Kind, string Title, string Author, Func<IScene> Back,
+    Action<EditorTestResult>? Done = null, string? VerifyRun = null);
+
+/// <summary>Outcome of an editor test run (the replay proves to the server that the level can be finished).</summary>
+public sealed record EditorTestResult(bool Completed, string Replay, int TimeTicks, int Score, string? RunId);
+
 public sealed class PlayScene : IScene
 {
     private enum Mode { Intro, Playing, Paused, Complete, GameOver, Victory }
 
     private readonly int _index;
+    private readonly CustomLevel? _custom;
     private readonly LevelData _data;
     private Stage _stage;
     private Mode _mode = Mode.Intro;
@@ -24,16 +32,24 @@ public sealed class PlayScene : IScene
     private bool _newRecord;
     private int _timeBonus;
 
-    public PlayScene(int index, CheckpointState? cp = null)
+    /// <param name="index">position in LevelRepo.Main, or -1 for a custom level</param>
+    public PlayScene(int index, CheckpointState? cp = null, CustomLevel? custom = null)
     {
         _index = index;
-        _data = LevelData.Load(Session.Levels[index]);
+        _custom = custom;
+        _data = custom?.Data ?? LevelRepo.Load(index);
         _stage = CreateStage(cp);
         Audio.PlayMusic(_data.World);
-        if (Online.Enabled && cp == null) _runTask = Online.StartRun(_data.Id);
+        if (custom?.VerifyRun != null) _runTask = Task.FromResult<string?>(custom.VerifyRun);
+        else if (Online.Enabled && cp == null && (custom == null || custom.Kind == "community")) _runTask = Online.StartRun(_data.Id);
     }
 
-    private bool CanSubmit => Online.Enabled && _finalTimeTicks > 0;
+    private bool IsTest => _custom?.Kind == "test";
+    private IScene Again() => new PlayScene(_index, null, _custom);
+    private IScene Leave() => _custom != null ? _custom.Back() : new LevelSelectScene();
+    private IScene Next() => _custom != null ? Again() : new PlayScene(_index + 1);
+
+    private bool CanSubmit => Online.Enabled && _finalTimeTicks > 0 && (_custom == null || _custom.Kind == "community");
     private int EndMenuCount => CanSubmit ? 3 : 2;
 
     private void GoSubmit(Func<IScene> next)
@@ -78,6 +94,18 @@ public sealed class PlayScene : IScene
         _stage.Score = _stage.FinalScore + _timeBonus;
         _finalTimeTicks = _stage.TimeTicks;
         _finalScore = _stage.Score;
+        if (_custom != null)
+        {
+            if (IsTest)
+            {
+                string? run = _runTask is { IsCompletedSuccessfully: true } ? _runTask.Result : null;
+                SceneManager.Go(_custom.Back());
+                _custom.Done?.Invoke(new EditorTestResult(true, _replay.Encode(), _finalTimeTicks, _finalScore, run));
+                return;
+            }
+            SetMode(Mode.Complete);
+            return;
+        }
         var save = SaveData.Current;
         save.Records.TryGetValue(_data.Id, out var rec);
         _newRecord = rec == null || _stage.Score > rec.Score;
@@ -87,9 +115,9 @@ public sealed class PlayScene : IScene
         rec.TotalCoins = _stage.TotalCoins;
         rec.Time = rec.Time <= 0 ? (float)_stage.Time : Math.Min(rec.Time, (float)_stage.Time);
         save.Records[_data.Id] = rec;
-        save.Unlocked = Math.Max(save.Unlocked, Math.Min(_index + 2, Session.Levels.Count));
+        save.Unlocked = Math.Max(save.Unlocked, Math.Min(_index + 2, LevelRepo.Main.Count));
         SaveData.Save();
-        SetMode(_index + 1 >= Session.Levels.Count ? Mode.Victory : Mode.Complete);
+        SetMode(_index + 1 >= LevelRepo.Main.Count ? Mode.Victory : Mode.Complete);
     }
 
     public void Update(float dt)
@@ -130,9 +158,9 @@ public sealed class PlayScene : IScene
                 switch (_menu.Update(4))
                 {
                     case 0: SetMode(Mode.Playing); break;
-                    case 1: SceneManager.Go(new PlayScene(_index)); break;
-                    case 2: SceneManager.Go(new LevelSelectScene()); break;
-                    case 3: SceneManager.Go(new TitleScene()); break;
+                    case 1: SceneManager.Go(Again()); break;
+                    case 2: SceneManager.Go(Leave()); break;
+                    case 3: SceneManager.Go(IsTest ? _custom!.Back() : new TitleScene()); break;
                 }
                 break;
 
@@ -142,10 +170,10 @@ public sealed class PlayScene : IScene
                 LayoutMenu(EndMenuCount, 440);
                 switch (_menu.Update(EndMenuCount))
                 {
-                    case 0: SceneManager.Go(new PlayScene(_index + 1)); break;
-                    case 1 when CanSubmit: GoSubmit(() => new PlayScene(_index + 1)); break;
+                    case 0: SceneManager.Go(Next()); break;
+                    case 1 when CanSubmit: GoSubmit(_custom != null ? Leave : Next); break;
                     case 1:
-                    case 2: SceneManager.Go(new LevelSelectScene()); break;
+                    case 2: SceneManager.Go(Leave()); break;
                 }
                 break;
 
@@ -172,9 +200,12 @@ public sealed class PlayScene : IScene
                 {
                     case 0:
                         Session.Lives = Session.StartLives;
-                        SceneManager.Go(new PlayScene(_index));
+                        SceneManager.Go(Again());
                         break;
-                    case 1: SceneManager.Go(new LevelSelectScene()); break;
+                    case 1:
+                        if (IsTest) _custom!.Done?.Invoke(new EditorTestResult(false, "", 0, 0, null));
+                        SceneManager.Go(Leave());
+                        break;
                 }
                 break;
         }
@@ -203,8 +234,18 @@ public sealed class PlayScene : IScene
             {
                 float a = _modeTime < 1f ? 1 : 1 - (_modeTime - 1f) / 0.3f;
                 Raylib.DrawRectangle(0, 0, Ui.Width, Ui.Height, Art.Fade(new Color(8, 14, 34, 255), a * 0.75f));
-                Ui.Title($"{Loc.T("hud.world")} {_data.Id}", Ui.Width / 2f, 250, 80, Art.Fade(Color.White, a), Art.Fade(new Color(30, 60, 130, 255), a));
-                Ui.Text(Loc.T("world." + _data.World), Ui.Width / 2f, 360, 40, Art.Fade(Ui.Accent, a), Align.Center);
+                if (_custom != null)
+                {
+                    float sz = 72;
+                    while (sz > 30 && Ui.Measure(_custom.Title, sz).X > 1100) sz -= 4;
+                    Ui.Title(_custom.Title, Ui.Width / 2f, 250, sz, Art.Fade(Color.White, a), Art.Fade(new Color(30, 60, 130, 255), a));
+                    Ui.Text(IsTest ? Loc.T("editor.testing") : Loc.F("community.by", _custom.Author), Ui.Width / 2f, 360, 36, Art.Fade(Ui.Accent, a), Align.Center);
+                }
+                else
+                {
+                    Ui.Title($"{Loc.T("hud.world")} {_data.Id}", Ui.Width / 2f, 250, 80, Art.Fade(Color.White, a), Art.Fade(new Color(30, 60, 130, 255), a));
+                    Ui.Text(Loc.T("world." + _data.World), Ui.Width / 2f, 360, 40, Art.Fade(Ui.Accent, a), Align.Center);
+                }
                 Art.PenguinHead(new System.Numerics.Vector2(Ui.Width / 2f - 50, 450), 1.6f);
                 Ui.Text($"× {Session.Lives}", Ui.Width / 2f - 10, 432, 40, Art.Fade(Color.White, a));
                 break;
@@ -247,7 +288,8 @@ public sealed class PlayScene : IScene
                 else if (_modeTime >= 0.8f)
                 {
                     LayoutMenu(EndMenuCount, 440);
-                    string[] items = CanSubmit ? [Loc.T("complete.next"), Loc.T("online.submit"), Loc.T("pause.levels")] : [Loc.T("complete.next"), Loc.T("pause.levels")];
+                    string first = _custom != null ? Loc.T("gameover.retry") : Loc.T("complete.next"), last = _custom != null ? Loc.T("menu.back") : Loc.T("pause.levels");
+                    string[] items = CanSubmit ? [first, Loc.T("online.submit"), last] : [first, last];
                     for (int i = 0; i < items.Length; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i, 30);
                 }
                 break;

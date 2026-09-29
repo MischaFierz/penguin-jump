@@ -103,6 +103,46 @@ public static class Online
         SaveData.Save();
     }
 
+    // ------------------------------------------------------------------ levels
+    /// <summary>The published main levels (null if unchanged / offline).</summary>
+    public static async Task<JsonNode?> MainLevels(string knownVersion)
+    {
+        if (!Enabled) return null;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{GameConfig.BaseUrl}/api/v1/levels/main");
+            req.Headers.TryAddWithoutValidation("If-None-Match", $"\"{knownVersion}\"");
+            using var resp = await Http.SendAsync(req);
+            if (resp.StatusCode != HttpStatusCode.OK) return null;
+            var j = JsonNode.Parse(await resp.Content.ReadAsStringAsync());
+            return j?["version"]?.GetValue<string>() == knownVersion ? null : j;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static Task<OnlineResult<JsonNode>> Community(string sort, string q, int page) =>
+        Call(HttpMethod.Get, $"/community?sort={sort}&page={page}&q={Uri.EscapeDataString(q)}");
+
+    public static Task<OnlineResult<JsonNode>> CommunityLevel(string code) => Call(HttpMethod.Get, "/community/" + code);
+    public static Task<OnlineResult<JsonNode>> Like(string code) => Call(HttpMethod.Post, $"/community/{code}/like", new { });
+    public static Task<OnlineResult<JsonNode>> Report(string code, string reason) => Call(HttpMethod.Post, $"/community/{code}/report", new { reason });
+    public static Task<OnlineResult<JsonNode>> MyLevels() => Call(HttpMethod.Get, "/my/levels");
+
+    public static Task<OnlineResult<JsonNode>> SaveLevel(string? code, string title, int world, IEnumerable<string> rows) =>
+        Call(HttpMethod.Post, code == null ? "/my/levels" : "/my/levels/" + code, new { title, world, rows = rows.ToArray() });
+
+    public static async Task<OnlineResult<string>> StartVerifyRun(string code)
+    {
+        var r = await Call(HttpMethod.Post, "/runs", new { level = code, purpose = "verify" });
+        return r.Ok ? new(r.Data!["run"]!.GetValue<string>(), null) : new(null, r.Error);
+    }
+
+    public static Task<OnlineResult<JsonNode>> Publish(string code, string run, string replay, int timeTicks, int score) =>
+        Call(HttpMethod.Post, $"/my/levels/{code}/publish", new { run, replay, result = new { timeTicks, score } });
+
     /// <summary>Translation key for an error returned by the API.</summary>
     public static string ErrorKey(string? error) => error switch
     {
@@ -114,6 +154,15 @@ public static class Online
         "password_short" or "password_long" or "password_weak" => "online.password_weak",
         "username_format" or "username_taken" => "online.user_taken",
         "rejected" or "bad_run" or "run_expired" or "bad_replay" => "online.rejected",
+        "not_found" or "bad_level" => "editor.not_found",
+        "level_start" => "editor.need_start",
+        "level_goal" => "editor.need_goal",
+        "level_width" => "editor.too_small",
+        "title_format" => "editor.title_short",
+        "title_bad" => "online.name_taken",
+        "too_many_levels" => "editor.too_many",
+        "draft_changed" => "editor.draft_changed",
+        "login_required" => "editor.login_needed",
         _ => "online.error"
     };
 

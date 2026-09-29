@@ -51,6 +51,7 @@ public sealed class TitleScene : IScene
     public TitleScene()
     {
         Audio.PlayMusic(0);
+        LevelRepo.RefreshAsync();
         if (!_autoChecked && !GameConfig.IsDevBuild)
         {
             _autoChecked = true;
@@ -59,12 +60,12 @@ public sealed class TitleScene : IScene
         }
     }
 
-    private string[] Items => [Loc.T("menu.play"), $"{Loc.T("menu.language")}: {Loc.Current.Name}", Loc.T("menu.options"), Loc.T("menu.quit")];
+    private string[] Items => [Loc.T("menu.play"), Loc.T("community.title"), Loc.T("editor.title"), $"{Loc.T("menu.language")}: {Loc.Current.Name}", Loc.T("menu.options"), Loc.T("menu.quit")];
 
     private void Layout()
     {
         _menu.Rects.Clear();
-        for (int i = 0; i < 4; i++) _menu.Rects.Add(new Rectangle(Ui.Width / 2f - 200, 330 + i * 78, 400, 62));
+        for (int i = 0; i < 6; i++) _menu.Rects.Add(new Rectangle(Ui.Width / 2f - 200, 296 + i * 64, 400, 54));
     }
 
     public void Update(float dt)
@@ -72,20 +73,14 @@ public sealed class TitleScene : IScene
         _t += dt;
         if (UpdateDialog.Update(dt)) return;
         Layout();
-        switch (_menu.Update(4))
+        switch (_menu.Update(6))
         {
-            case 0:
-                SceneManager.Go(new LevelSelectScene());
-                break;
-            case 1:
-                SceneManager.Go(new LanguageScene());
-                break;
-            case 2:
-                SceneManager.Go(new OptionsScene());
-                break;
-            case 3:
-                SceneManager.QuitRequested = true;
-                break;
+            case 0: SceneManager.Go(new LevelSelectScene()); break;
+            case 1: SceneManager.Go(new CommunityScene()); break;
+            case 2: SceneManager.Go(new EditorListScene()); break;
+            case 3: SceneManager.Go(new LanguageScene()); break;
+            case 4: SceneManager.Go(new OptionsScene()); break;
+            case 5: SceneManager.QuitRequested = true; break;
         }
     }
 
@@ -100,7 +95,7 @@ public sealed class TitleScene : IScene
 
         Layout();
         var items = Items;
-        for (int i = 0; i < items.Length; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i);
+        for (int i = 0; i < items.Length; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i, 30);
 
         Ui.Text($"v{GameConfig.Version}{(GameConfig.IsDevBuild ? " (dev)" : "")}", Ui.Width - 16, Ui.Height - 30, 18, new Color(40, 60, 100, 255), Align.Right, shadow: false);
         if (SaveData.WasTampered) Ui.Text(Loc.T("online.save_tampered"), Ui.Width / 2f, 262, 22, new Color(255, 120, 120, 255), Align.Center);
@@ -317,39 +312,69 @@ public sealed class LevelSelectScene : IScene
 {
     private int _sel;
     private float _t;
+    private int _scroll;
+    private List<(int World, List<int> Items)> _bands = new();
 
     public LevelSelectScene()
     {
-        Session.Levels = LevelData.Index();
-        _sel = Math.Clamp(SaveData.Current.Unlocked - 1, 0, Session.Levels.Count - 1);
+        LevelRepo.Poll();
+        Build();
+        _sel = Math.Clamp(SaveData.Current.Unlocked - 1, 0, LevelRepo.Main.Count - 1);
         Audio.PlayMusic(0);
+        LevelRepo.RefreshAsync();
     }
 
-    private static Rectangle Rect(int i)
+    public int Selected { set => _sel = Math.Clamp(value, 0, LevelRepo.Main.Count - 1); }
+
+    /// <summary>Bands per world, taken from the level ids ("5-1" belongs to world 5).</summary>
+    private void Build() => _bands = LevelRepo.Main.Select((l, i) => (World: LevelRepo.WorldOf(l.Id), Index: i))
+        .GroupBy(x => x.World).OrderBy(g => g.Key).Select(g => (g.Key, g.Select(x => x.Index).ToList())).ToList();
+
+    private (int band, int k) Pos(int i)
     {
-        int world = i / 3, n = i % 3;
-        return new Rectangle(470 + n * 250, 130 + world * 132, 230, 112);
+        for (int b = 0; b < _bands.Count; b++) { int k = _bands[b].Items.IndexOf(i); if (k >= 0) return (b, k); }
+        return (0, 0);
+    }
+
+    private Rectangle Rect(int i)
+    {
+        var (b, k) = Pos(i);
+        int n = _bands[b].Items.Count;
+        float w = n <= 3 ? 230 : 700f / n - 20;
+        return new Rectangle(470 + k * (w + 20), 130 + (b - _scroll) * 132, w, 112);
     }
 
     private static bool Unlocked(int i) => i < SaveData.Current.Unlocked;
 
-    public int Selected { set => _sel = Math.Clamp(value, 0, Session.Levels.Count - 1); }
-
     public void Update(float dt)
     {
         _t += dt;
-        int count = Session.Levels.Count, prev = _sel;
+        if (LevelRepo.Poll()) { Build(); _sel = Math.Min(_sel, LevelRepo.Main.Count - 1); }
+        int count = LevelRepo.Main.Count, prev = _sel;
+        var (band, k) = Pos(_sel);
         if (Input.MenuLeft) _sel = Math.Max(0, _sel - 1);
         if (Input.MenuRight) _sel = Math.Min(count - 1, _sel + 1);
-        if (Input.MenuUp && _sel - 3 >= 0) _sel -= 3;
-        if (Input.MenuDown && _sel + 3 < count) _sel += 3;
+        if (Input.MenuUp && band > 0) _sel = _bands[band - 1].Items[Math.Min(k, _bands[band - 1].Items.Count - 1)];
+        if (Input.MenuDown && band < _bands.Count - 1) _sel = _bands[band + 1].Items[Math.Min(k, _bands[band + 1].Items.Count - 1)];
+        float wheel = Raylib.GetMouseWheelMove();
+        if (wheel != 0) _scroll = Math.Clamp(_scroll - Math.Sign(wheel), 0, Math.Max(0, _bands.Count - 4));
+        if (prev != _sel)
+        {
+            int sb = Pos(_sel).band;
+            if (sb < _scroll) _scroll = sb;
+            if (sb > _scroll + 3) _scroll = sb - 3;
+        }
         bool click = false;
         for (int i = 0; i < count; i++)
-            if (Ui.Hover(Rect(i)))
+        {
+            var r = Rect(i);
+            if (r.Y < 110 || r.Y > 600) continue;
+            if (Ui.Hover(r))
             {
                 if (Input.MouseMoved) _sel = i;
                 if (Input.Click) { _sel = i; click = true; }
             }
+        }
         if (prev != _sel) Audio.Play(Sfx.MenuMove);
 
         if ((Input.Confirm || click) && Unlocked(_sel))
@@ -362,7 +387,7 @@ public sealed class LevelSelectScene : IScene
         {
             Audio.Play(Sfx.MenuSelect);
             int keep = _sel;
-            SceneManager.Go(new LeaderboardScene($"{_sel / 3 + 1}-{_sel % 3 + 1}", () => new LevelSelectScene { Selected = keep }));
+            SceneManager.Go(new LeaderboardScene(LevelRepo.Main[_sel].Id, () => new LevelSelectScene { Selected = keep }));
         }
         else if (Input.Back) SceneManager.Go(new TitleScene());
     }
@@ -371,25 +396,28 @@ public sealed class LevelSelectScene : IScene
     {
         MenuBackdrop.Draw(_t, false);
         MenuBackdrop.Header(Loc.T("levels.title"), 30);
-        int count = Session.Levels.Count;
-        for (int w = 0; w < (count + 2) / 3; w++)
+        for (int b = 0; b < _bands.Count; b++)
         {
-            var th = Art.ThemeFor(w + 1);
-            var band = new Rectangle(60, 124 + w * 132, 1160, 124);
-            Raylib.DrawRectangleRounded(band, 0.2f, 8, Art.Fade(th.SkyTop, 0.85f));
-            Raylib.DrawRectangleRoundedLinesEx(band, 0.2f, 8, 2, Art.Fade(th.GroundCap, 0.8f));
-            Ui.Text($"{Loc.T("hud.world")} {w + 1}", 84, 140 + w * 132, 22, new Color(200, 220, 255, 255));
-            var name = Loc.T($"world.{w + 1}");
+            float y = 124 + (b - _scroll) * 132;
+            if (y < 100 || y > 620) continue;
+            var first = LevelRepo.Main[_bands[b].Items[0]];
+            var th = Art.ThemeFor(first.World);
+            var bandRect = new Rectangle(60, y, 1160, 124);
+            Raylib.DrawRectangleRounded(bandRect, 0.2f, 8, Art.Fade(th.SkyTop, 0.85f));
+            Raylib.DrawRectangleRoundedLinesEx(bandRect, 0.2f, 8, 2, Art.Fade(th.GroundCap, 0.8f));
+            Ui.Text($"{Loc.T("hud.world")} {_bands[b].World}", 84, y + 16, 22, new Color(200, 220, 255, 255));
+            string key = $"world.{_bands[b].World}", name = Loc.T(key) != key ? Loc.T(key) : first.Title;
             float s = 34;
             while (s > 16 && Ui.Measure(name, s).X > 370) s -= 2;
-            Ui.Text(name, 84, 172 + w * 132, s, Color.White);
+            Ui.Text(name, 84, y + 48, s, Color.White);
         }
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < LevelRepo.Main.Count; i++)
         {
             var r = Rect(i);
+            if (r.Y < 100 || r.Y > 620) continue;
             bool sel = i == _sel, open = Unlocked(i);
-            string id = $"{i / 3 + 1}-{i % 3 + 1}";
+            string id = LevelRepo.Main[i].Id;
             if (sel) r = new Rectangle(r.X - 4, r.Y - 4, r.Width + 8, r.Height + 8);
             Raylib.DrawRectangleRounded(r, 0.2f, 8, sel ? Ui.Accent : open ? new Color(30, 48, 90, 240) : new Color(40, 44, 60, 230));
             Raylib.DrawRectangleRoundedLinesEx(r, 0.2f, 8, 3, sel ? Color.White : new Color(120, 170, 230, 255));
