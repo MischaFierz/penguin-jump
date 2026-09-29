@@ -12,6 +12,26 @@ public static class Program
     public static void Main(string[] args)
     {
         GameConfig.Load();
+
+        // headless test tool: "--simtest <level.txt> <inputs.txt>" plays raw tick inputs (one number per line)
+        // and prints the gameplay state after every tick; compared against the JS and PHP versions in CI.
+        if (args.Length == 3 && args[0] == "--simtest")
+        {
+            SimTest(args[1], args[2]);
+            return;
+        }
+        // test tool: "--verify-manifest <version.json> <version.json.sig>" -> prints VALID / INVALID
+        if (args.Length == 3 && args[0] == "--verify-manifest")
+        {
+            bool ok = Updater.VerifySignature(File.ReadAllBytes(args[1]), File.ReadAllText(args[2]).Trim());
+            using var o = new StreamWriter(Console.OpenStandardOutput());
+            o.WriteLine(ok ? "VALID" : "INVALID");
+            return;
+        }
+
+        // unknown tool option: never fall through to opening a game window
+        if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--screenshot") return;
+
         Updater.CleanupOldFiles();
         SaveData.Load();
 
@@ -81,6 +101,18 @@ public static class Program
         Audio.Shutdown();
         Raylib.UnloadRenderTexture(_target);
         Raylib.CloseWindow();
+    }
+
+    private static void SimTest(string levelFile, string inputFile)
+    {
+        var level = Game.LevelData.Parse(File.ReadAllText(levelFile), Path.GetFileName(levelFile));
+        var replay = new Game.Replay();
+        foreach (var line in File.ReadAllLines(inputFile))
+            if (int.TryParse(line, out var b)) replay.Add(Game.TickInput.FromBits(b));
+        using var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = false, NewLine = "\n" };
+        var result = Game.ReplayRunner.Run(level, replay, st => stdout.WriteLine(st.StateHash()));
+        stdout.WriteLine($"RESULT {(result.Completed ? 1 : 0)} {result.Ticks} {result.TimeTicks} {result.FinalScore} {result.Coins}");
+        stdout.WriteLine($"ENCODED {replay.Encode()}");
     }
 
     private static IScene DebugScene(string name)

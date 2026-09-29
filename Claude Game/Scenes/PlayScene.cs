@@ -8,12 +8,18 @@ public sealed class PlayScene : IScene
 {
     private enum Mode { Intro, Playing, Paused, Complete, GameOver, Victory }
 
-    private const float Step = 1f / 120f;
     private readonly int _index;
     private readonly LevelData _data;
     private Stage _stage;
     private Mode _mode = Mode.Intro;
     private float _modeTime, _accumulator;
+    private bool _pendingJump, _pendingAction;
+
+    /// <summary>Inputs of the current attempt (from level start, across respawns) - sent for online highscores.</summary>
+    private readonly Replay _replay = new();
+    private bool _recording = true;
+    private readonly Task<string?>? _runTask;   // server run id, requested at level start (online highscores)
+    private int _finalTimeTicks, _finalScore;
     private readonly Menu _menu = new();
     private bool _newRecord;
     private int _timeBonus;
@@ -24,6 +30,16 @@ public sealed class PlayScene : IScene
         _data = LevelData.Load(Session.Levels[index]);
         _stage = CreateStage(cp);
         Audio.PlayMusic(_data.World);
+        if (Online.Enabled && cp == null) _runTask = Online.StartRun(_data.Id);
+    }
+
+    private bool CanSubmit => Online.Enabled && _finalTimeTicks > 0;
+    private int EndMenuCount => CanSubmit ? 3 : 2;
+
+    private void GoSubmit(Func<IScene> next)
+    {
+        string? run = _runTask is { IsCompletedSuccessfully: true } ? _runTask.Result : null;
+        SceneManager.Go(new SubmitScene(new SubmitScene.Run(_data.Id, run, _replay.Encode(), _finalTimeTicks, _finalScore, _stage.Coins), next));
     }
 
     private Stage CreateStage(CheckpointState? cp)
@@ -58,8 +74,10 @@ public sealed class PlayScene : IScene
 
     private void OnLevelCompleted()
     {
-        _timeBonus = Math.Max(0, 300 - (int)_stage.Time) * 10;
-        _stage.Score += _timeBonus;
+        _timeBonus = RunResult.TimeBonus(_stage.TimeTicks);
+        _stage.Score = _stage.FinalScore + _timeBonus;
+        _finalTimeTicks = _stage.TimeTicks;
+        _finalScore = _stage.Score;
         var save = SaveData.Current;
         save.Records.TryGetValue(_data.Id, out var rec);
         _newRecord = rec == null || _stage.Score > rec.Score;
@@ -67,7 +85,7 @@ public sealed class PlayScene : IScene
         rec.Score = Math.Max(rec.Score, _stage.Score);
         rec.Coins = Math.Max(rec.Coins, _stage.Coins);
         rec.TotalCoins = _stage.TotalCoins;
-        rec.Time = rec.Time <= 0 ? _stage.Time : Math.Min(rec.Time, _stage.Time);
+        rec.Time = rec.Time <= 0 ? (float)_stage.Time : Math.Min(rec.Time, (float)_stage.Time);
         save.Records[_data.Id] = rec;
         save.Unlocked = Math.Max(save.Unlocked, Math.Min(_index + 2, Session.Levels.Count));
         SaveData.Save();
@@ -80,7 +98,6 @@ public sealed class PlayScene : IScene
         switch (_mode)
         {
             case Mode.Intro:
-                _stage.Update(dt * 0, false);
                 if (_modeTime > 1.3f || (_modeTime > 0.3f && (Input.JumpPressed || Input.Confirm))) SetMode(Mode.Playing);
                 break;
 
@@ -92,12 +109,17 @@ public sealed class PlayScene : IScene
                     return;
                 }
                 _accumulator += MathF.Min(dt, 0.1f);
-                _stage.PendingJump |= Input.JumpPressed;
-                _stage.PendingAction |= Input.ActionPressed;
-                while (_accumulator >= Step)
+                _pendingJump |= Input.JumpPressed;
+                _pendingAction |= Input.ActionPressed;
+                while (_accumulator >= Phys.Step)
                 {
-                    _stage.Update(Step, true);
-                    _accumulator -= Step;
+                    // button presses of this frame go into the first tick only
+                    var input = new TickInput(Input.Left, Input.Right, Input.RunHeld, Input.JumpHeld, _pendingJump, _pendingAction);
+                    _pendingJump = _pendingAction = false;
+                    _stage.Update(Phys.Step, input);
+                    if (_recording) _replay.Add(input);
+                    if (_stage.Completed) _recording = false;
+                    _accumulator -= (float)Phys.Step;
                     if (_mode != Mode.Playing) break;
                 }
                 break;
@@ -115,19 +137,32 @@ public sealed class PlayScene : IScene
                 break;
 
             case Mode.Complete:
-                _stage.Update(dt, false);
+                _stage.Update(dt, TickInput.None);
                 if (_modeTime < 0.8f) break;
-                LayoutMenu(2, 470);
-                switch (_menu.Update(2))
+                LayoutMenu(EndMenuCount, 440);
+                switch (_menu.Update(EndMenuCount))
                 {
                     case 0: SceneManager.Go(new PlayScene(_index + 1)); break;
-                    case 1: SceneManager.Go(new LevelSelectScene()); break;
+                    case 1 when CanSubmit: GoSubmit(() => new PlayScene(_index + 1)); break;
+                    case 1:
+                    case 2: SceneManager.Go(new LevelSelectScene()); break;
                 }
                 break;
 
             case Mode.Victory:
-                _stage.Update(dt, false);
-                if (_modeTime > 1.5f && (Input.Confirm || Input.Back || Input.Click)) SceneManager.Go(new TitleScene());
+                _stage.Update(dt, TickInput.None);
+                if (_modeTime < 1.5f) break;
+                if (!CanSubmit)
+                {
+                    if (Input.Confirm || Input.Back || Input.Click) SceneManager.Go(new TitleScene());
+                    break;
+                }
+                VictoryLayout();
+                switch (_menu.Update(2))
+                {
+                    case 0: GoSubmit(() => new TitleScene()); break;
+                    case 1: SceneManager.Go(new TitleScene()); break;
+                }
                 break;
 
             case Mode.GameOver:
@@ -143,6 +178,13 @@ public sealed class PlayScene : IScene
                 }
                 break;
         }
+    }
+
+    private void VictoryLayout()
+    {
+        _menu.Rects.Clear();
+        _menu.Rects.Add(new Rectangle(Ui.Width / 2f - 300, 560, 290, 62));
+        _menu.Rects.Add(new Rectangle(Ui.Width / 2f + 10, 560, 290, 62));
     }
 
     private void LayoutMenu(int count, float y)
@@ -182,25 +224,31 @@ public sealed class PlayScene : IScene
             {
                 float a = MathF.Min(1, _modeTime * 3);
                 Raylib.DrawRectangle(0, 0, Ui.Width, Ui.Height, Art.Fade(new Color(0, 0, 0, 255), 0.5f * a));
-                Ui.Panel(new Rectangle(Ui.Width / 2f - 330, 90, 660, _mode == Mode.Victory ? 520 : 560));
+                Ui.Panel(new Rectangle(Ui.Width / 2f - 330, 90, 660, _mode == Mode.Victory ? (CanSubmit ? 580 : 520) : 580));
                 bool victory = _mode == Mode.Victory;
                 Ui.Title(victory ? Loc.T("victory.title") : Loc.T("complete.title"), Ui.Width / 2f, 112, 56, Ui.Accent, new Color(60, 30, 0, 255));
                 float y = 205;
                 Stat(Loc.T("complete.coins"), $"{_stage.Coins} / {_stage.TotalCoins}", ref y);
-                Stat(Loc.T("complete.time"), StageView.FormatTime(_stage.Time), ref y);
+                Stat(Loc.T("complete.time"), StageView.FormatTime((float)_stage.Time), ref y);
                 Stat(Loc.T("complete.score"), $"{_stage.Score}  (+{_timeBonus})", ref y);
                 if (_newRecord && (int)(_modeTime * 3) % 2 == 0)
                     Ui.Text(Loc.T("complete.record"), Ui.Width / 2f, y + 4, 32, new Color(120, 255, 170, 255), Align.Center);
                 if (victory)
                 {
                     Ui.TextBlock(Loc.T("victory.text"), Ui.Width / 2f, 440, 30, 580, Color.White);
-                    if (_modeTime > 1.5f) Ui.Text(Loc.T("menu.continue") + " >", Ui.Width / 2f, 560, 26, Ui.Accent, Align.Center);
+                    if (_modeTime > 1.5f && !CanSubmit) Ui.Text(Loc.T("menu.continue") + " >", Ui.Width / 2f, 560, 26, Ui.Accent, Align.Center);
+                    if (_modeTime > 1.5f && CanSubmit)
+                    {
+                        VictoryLayout();
+                        Ui.Button(_menu.Rects[0], Loc.T("online.submit"), _menu.Selected == 0, 26);
+                        Ui.Button(_menu.Rects[1], Loc.T("menu.continue"), _menu.Selected == 1, 26);
+                    }
                 }
                 else if (_modeTime >= 0.8f)
                 {
-                    LayoutMenu(2, 470);
-                    Ui.Button(_menu.Rects[0], Loc.T("complete.next"), _menu.Selected == 0, 30);
-                    Ui.Button(_menu.Rects[1], Loc.T("pause.levels"), _menu.Selected == 1, 30);
+                    LayoutMenu(EndMenuCount, 440);
+                    string[] items = CanSubmit ? [Loc.T("complete.next"), Loc.T("online.submit"), Loc.T("pause.levels")] : [Loc.T("complete.next"), Loc.T("pause.levels")];
+                    for (int i = 0; i < items.Length; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i, 30);
                 }
                 break;
             }

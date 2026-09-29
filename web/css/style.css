@@ -1,0 +1,39 @@
+html, body { margin: 0; height: 100%; background: #0a1024; overflow: hidden; touch-action: none;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; image-rendering: auto; }
+#touch { position: fixed; inset: 0; pointer-events: none; display: none; }
+body.playing #touch { display: block; }
+.tbtn { position: absolute; pointer-events: auto; width: 96px; height: 96px; border-radius: 50%;
+  background: rgba(255,255,255,0.18); border: 3px solid rgba(255,255,255,0.45); color: #fff;
+  font: bold 34px system-ui, sans-serif; display: flex; align-items: center; justify-content: center;
+  touch-action: none; }
+.tbtn.down { background: rgba(255,196,64,0.55); border-color: #fff; }
+#t-left { left: max(18px, env(safe-area-inset-left)); bottom: 22px; }
+#t-right { left: calc(max(18px, env(safe-area-inset-left)) + 112px); bottom: 22px; }
+#t-run { right: calc(max(18px, env(safe-area-inset-right)) + 112px); bottom: 22px; width: 84px; height: 84px; font-size: 28px; }
+#t-jump { right: max(18px, env(safe-area-inset-right)); bottom: 52px; width: 108px; height: 108px; }
+#t-pause { right: max(14px, env(safe-area-inset-right)); top: 84px; width: 56px; height: 56px; font-size: 22px; border-radius: 16px; }
+#rotate { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+  background: #0a1024; color: #fff; font: bold 24px system-ui, sans-serif; text-align: center; padding: 24px; z-index: 10; }
+#rotate .phone { width: 60px; height: 100px; border: 5px solid #ffc440; border-radius: 12px; margin-bottom: 20px;
+  animation: turn 2s ease-in-out infinite; }
+@keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+
+/* online form (HTML inputs so that phones show their keyboard) */
+#form { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(4, 8, 20, 0.72); z-index: 20; padding: 16px; }
+#form[hidden] { display: none; }
+#form .box { width: min(520px, 100%); background: #121c38; border: 3px solid #8cc8ff; border-radius: 18px; padding: 22px 24px; color: #fff;
+  font: 18px system-ui, sans-serif; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
+#form h2 { margin: 0 0 14px; color: #ffc440; font-size: 26px; text-align: center; }
+#form label { display: grid; gap: 6px; margin: 12px 0; color: #aac8f0; font-size: 16px; }
+#form input { font: 22px system-ui, sans-serif; padding: 10px 12px; border-radius: 10px; border: 2px solid #5a82be; background: #0a1228; color: #fff; }
+#form input:focus { outline: none; border-color: #ffc440; }
+#form .buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+#form button { font: bold 18px system-ui, sans-serif; padding: 11px 18px; border-radius: 999px; border: 0; background: #1e3060; color: #fff; cursor: pointer; }
+#form button[type=submit] { background: #ffc440; color: #182038; }
+#form button:disabled { opacity: 0.5; }
+#form-msg { min-height: 1.3em; text-align: center; margin: 8px 0 0; }
+#form-msg.err { color: #ff9a9a; }
+body.form-open #touch { display: none; }

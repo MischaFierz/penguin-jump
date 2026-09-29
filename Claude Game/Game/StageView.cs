@@ -7,22 +7,23 @@ namespace Platformer.Game;
 /// <summary>Draws a Stage (world + HUD).</summary>
 public static class StageView
 {
-    private const float T = Phys.Tile;
+    private const float T = (float)Phys.Tile;
 
     public static void Draw(Stage s, int lives)
     {
         var th = s.Theme;
-        Art.Background(th, s.CamX, s.Clock);
-        WeatherParticles(th, s.CamX, s.Clock);
+        float clock = (float)s.Clock, camX = (float)s.CamX;
+        Art.Background(th, camX, clock);
+        WeatherParticles(th, camX, clock);
 
-        float shake = s.Shake > 0 ? MathF.Sin(s.Clock * 90) * 5 * (s.Shake / 0.3f) : 0;
-        var cam = new Camera2D { Offset = new Vector2(-MathF.Round(s.CamX) + shake, 0), Zoom = 1 };
+        float shake = s.Shake > 0 ? MathF.Sin(clock * 90) * 5 * (s.Shake / 0.3f) : 0;
+        var cam = new Camera2D { Offset = new Vector2(-MathF.Round(camX) + shake, 0), Zoom = 1 };
         Raylib.BeginMode2D(cam);
 
-        int x0 = Math.Max(0, (int)(s.CamX / T) - 2), x1 = Math.Min(s.W - 1, (int)((s.CamX + Ui.Width) / T) + 2);
+        int x0 = Math.Max(0, (int)(camX / T) - 2), x1 = Math.Min(s.W - 1, (int)((camX + Ui.Width) / T) + 2);
 
         // igloo behind everything else
-        Art.Igloo(s.Goal.x * T, s.Goal.y * T, s.Clock);
+        Art.Igloo(s.Goal.x * T, s.Goal.y * T, clock);
 
         for (int x = x0; x <= x1; x++)
         for (int y = 0; y < s.H; y++)
@@ -35,32 +36,32 @@ public static class StageView
                     Art.Ground(x, y, th, s.At(x, y - 1) != '#' && y > 0 || (y == 0 && !th.Ceiling), s.At(x - 1, y) != '#' && x > 0, s.At(x + 1, y) != '#' && x < s.W - 1);
                     break;
                 case 'B': Art.Brick(px, py + s.BumpOffset(x, y), th); break;
-                case '?' or 'F' or 'S' or 'W' or 'H': Art.PrizeBlock(px, py + s.BumpOffset(x, y), s.Clock, false); break;
-                case 'E': Art.PrizeBlock(px, py + s.BumpOffset(x, y), s.Clock, true); break;
+                case '?' or 'F' or 'S' or 'W' or 'H': Art.PrizeBlock(px, py + s.BumpOffset(x, y), clock, false); break;
+                case 'E': Art.PrizeBlock(px, py + s.BumpOffset(x, y), clock, true); break;
                 case 'x': if (!s.CrumbleFallen(x, y)) Art.Crumble(px, py, s.CrumbleShake(x, y), th); break;
                 case '-': Art.OneWay(px, py, th, s.At(x - 1, y) != '-', s.At(x + 1, y) != '-'); break;
                 case '^': Art.Spikes(px, py, th); break;
-                case '~': Art.Liquid(px, py, s.At(x, y - 1) != '~', th, s.Clock); break;
-                case 'o': Art.Coin(new Vector2(px + T / 2, py + T / 2), s.Clock); break;
+                case '~': Art.Liquid(px, py, s.At(x, y - 1) != '~', th, clock); break;
+                case 'o': Art.Coin(new Vector2(px + T / 2, py + T / 2), clock); break;
                 case '*': Art.Spring(px, py, s.SpringCompress(x, y)); break;
             }
         }
 
         foreach (var sg in s.Signs) Art.Sign(sg.Tx * T, sg.Ty * T);
-        foreach (var cp in s.Checkpoints) Art.Checkpoint(cp.Tx * T, cp.Ty * T, cp.Active, s.Clock);
-        foreach (var mp in s.Platforms) Art.MovingPlatform(mp.Pos.X, mp.Pos.Y, mp.WidthTiles, th);
+        foreach (var cp in s.Checkpoints) Art.Checkpoint(cp.Tx * T, cp.Ty * T, cp.Active, clock);
+        foreach (var mp in s.Platforms) Art.MovingPlatform((float)mp.Pos.X, (float)mp.Pos.Y, mp.WidthTiles, th);
 
         foreach (var cp in s.CoinPops)
-            Art.Coin(cp.Pos + new Vector2(0, -20 - MathF.Sin(cp.T / 0.5f * MathF.PI) * 60), s.Clock * 3, 1 - cp.T);
+            Art.Coin(cp.Pos + new Vector2(0, -20 - MathF.Sin(cp.T / 0.5f * MathF.PI) * 60), clock * 3, 1 - cp.T);
 
         foreach (var it in s.Items)
         {
             switch (it.Kind)
             {
-                case ItemKind.Fish: Art.Fish(it.Pos, it.T); break;
-                case ItemKind.Snowflake: Art.Snowflake(it.Pos + new Vector2(0, MathF.Sin(it.T * 3) * 4), it.T); break;
-                case ItemKind.Wing: Art.WingItem(it.Pos, it.T); break;
-                case ItemKind.Heart: Art.Heart(it.Pos, 1 + MathF.Sin(it.T * 8) * 0.08f); break;
+                case ItemKind.Fish: Art.Fish(it.Pos, (float)it.T); break;
+                case ItemKind.Snowflake: Art.Snowflake(it.Pos + new Vector2(0, MathF.Sin((float)it.T * 3) * 4), (float)it.T); break;
+                case ItemKind.Wing: Art.WingItem(it.Pos, (float)it.T); break;
+                case ItemKind.Heart: Art.Heart(it.Pos, 1 + MathF.Sin((float)it.T * 8) * 0.08f); break;
             }
         }
 
@@ -70,20 +71,20 @@ public static class StageView
             if (e.Flipped)
             {
                 // draw upside down by mirroring around the center
-                Raylib.DrawEllipse((int)bc.X, (int)(bc.Y - e.H / 2), e.W / 2, e.H / 2, Art.Fade(Color.Black, 0.2f));
+                Raylib.DrawEllipse((int)bc.X, (int)(bc.Y - (float)e.H / 2), (float)e.W / 2, (float)e.H / 2, Art.Fade(Color.Black, 0.2f));
             }
             switch (e.Kind)
             {
-                case EnemyKind.Walker: Art.Walker(bc, e.Facing, e.T, e.Squashed, e.Flipped ? new Color(150, 110, 200, 255) : new Color(170, 120, 230, 255)); break;
-                case EnemyKind.Spiky: Art.Spiky(bc, e.Facing, e.T); break;
-                case EnemyKind.Bird: Art.Bird(new Vector2(bc.X, bc.Y - e.H / 2), e.Facing, e.T); break;
-                case EnemyKind.Hopper: Art.Hopper(bc, e.Facing, e.T, !e.OnGround); break;
+                case EnemyKind.Walker: Art.Walker(bc, e.Facing, (float)e.T, e.Squashed, e.Flipped ? new Color(150, 110, 200, 255) : new Color(170, 120, 230, 255)); break;
+                case EnemyKind.Spiky: Art.Spiky(bc, e.Facing, (float)e.T); break;
+                case EnemyKind.Bird: Art.Bird(new Vector2(bc.X, bc.Y - (float)e.H / 2), e.Facing, (float)e.T); break;
+                case EnemyKind.Hopper: Art.Hopper(bc, e.Facing, (float)e.T, !e.OnGround); break;
             }
-            if (e.Flipped) DrawStars(bc - new Vector2(0, e.H + 6), s.Clock);
+            if (e.Flipped) DrawStars(bc - new Vector2(0, (float)e.H + 6), clock);
         }
 
         foreach (var ic in s.Icicles)
-            if (ic.State < 3) Art.Icicle(ic.Pos.X, ic.Pos.Y, ic.State == 1 ? ic.Timer : 0);
+            if (ic.State < 3) Art.Icicle((float)ic.Pos.X, (float)ic.Pos.Y, ic.State == 1 ? (float)ic.Timer : 0);
 
         // player
         var p = s.Player;
@@ -92,8 +93,8 @@ public static class StageView
             bool blink = p.Invuln > 0 && (int)(p.Invuln * 20) % 2 == 0;
             if (!blink)
             {
-                float speed01 = MathF.Min(1, MathF.Abs(p.Vel.X) / Phys.Walk);
-                Art.Penguin(p.Pos.X + Phys.PlayerW / 2, p.Pos.Y + Phys.PlayerH, p.Facing, p.Anim, speed01, !p.OnGround, p.Vel.Y,
+                float speed01 = (float)Math.Min(1, Math.Abs(p.Vel.X) / Phys.Walk);
+                Art.Penguin((float)(p.Pos.X + Phys.PlayerW / 2), (float)(p.Pos.Y + Phys.PlayerH), p.Facing, (float)p.Anim, speed01, !p.OnGround, (float)p.Vel.Y,
                     p.Dead ? 0 : p.Power, p.Wings && !p.Dead, 1, p.Dead);
             }
         }
@@ -117,7 +118,7 @@ public static class StageView
 
         // tutorial sign bubble
         var sign = s.NearbySign();
-        if (sign != null && !string.IsNullOrEmpty(sign.Key)) SignBubble(Loc.T(sign.Key), sign.Tx * T + T / 2, sign.Ty * T - 12, s.CamX);
+        if (sign != null && !string.IsNullOrEmpty(sign.Key)) SignBubble(Loc.T(sign.Key), sign.Tx * T + T / 2, sign.Ty * T - 12, camX);
 
         Raylib.EndMode2D();
 
@@ -179,6 +180,7 @@ public static class StageView
 
     private static void Hud(Stage s, int lives)
     {
+        float clock = (float)s.Clock;
         // left: lives + coins + power
         Raylib.DrawRectangleRounded(new Rectangle(12, 10, 300, 56), 0.4f, 8, new Color(10, 20, 45, 170));
         Art.PenguinHead(new Vector2(40, 38), 1.1f);
@@ -191,7 +193,7 @@ public static class StageView
             Raylib.DrawRectangleRounded(new Rectangle(px - 16, 24, 32, 10), 1, 4, s.Player.Power == 2 ? new Color(120, 220, 255, 255) : new Color(230, 50, 60, 255));
             px += 30;
         }
-        if (s.Player.Wings) Art.WingItem(new Vector2(px, 38), s.Clock);
+        if (s.Player.Wings) Art.WingItem(new Vector2(px, 38), clock);
 
         // center: level name
         string title = $"{Loc.T("world." + s.Data.World)}  {s.Data.Id}";
@@ -204,7 +206,7 @@ public static class StageView
         Ui.Text(Loc.T("hud.score"), Ui.Width - 306, 14, 18, new Color(170, 200, 240, 255));
         Ui.Text(s.Score.ToString("D6"), Ui.Width - 306, 32, 28, Color.White);
         Ui.Text(Loc.T("hud.time"), Ui.Width - 24, 14, 18, new Color(170, 200, 240, 255), Align.Right);
-        Ui.Text(FormatTime(s.Time), Ui.Width - 24, 32, 28, Color.White, Align.Right);
+        Ui.Text(FormatTime((float)s.Time), Ui.Width - 24, 32, 28, Color.White, Align.Right);
 
         // power-up / info message
         if (s.MessageTimer > 0 && s.Message != null)

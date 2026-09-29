@@ -14,6 +14,10 @@ const Config = {
   isDev: /dev/.test(DATA.config.version || 'dev'),
   isAndroid: typeof window.AndroidBridge !== 'undefined',
 };
+// Server root for version.json and the API: the web game lives in <site>/play/, so on the website it is
+// simply the parent folder (works for any domain/sub-folder); the Android app uses baseUrl from game.json.
+Config.root = !Config.isAndroid && /^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname) || /[?&]localserver/.test(location.search)
+  ? new URL('..', location.href).href.replace(/\/$/, '') : Config.baseUrl;
 document.title = Config.name;
 
 // ------------------------------------------------------------------ localization
@@ -39,7 +43,7 @@ const Loc = {
 // ------------------------------------------------------------------ save data
 const Save = {
   key: 'save-' + Config.name.replace(/[^A-Za-z0-9]/g, ''),
-  data: { language: null, unlocked: 1, records: {}, sfx: 0.8, music: 0.5, skippedVersion: null },
+  data: { language: null, unlocked: 1, records: {}, sfx: 0.8, music: 0.5, skippedVersion: null, nickname: '', onlineUser: null, onlineToken: null },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.key) || '{}')); } catch (e) { /* ignore */ }
   },
@@ -61,6 +65,7 @@ const Input = {
 
   init(canvas) {
     window.addEventListener('keydown', e => {
+      if (e.target instanceof HTMLInputElement) return; // typing into the online form is not game input
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'].includes(e.key)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
@@ -401,14 +406,14 @@ const Updater = {
     return false;
   },
   async check() {
-    if (!Config.baseUrl || this.state === 'checking') return;
+    if (!Config.root || this.state === 'checking') return;
     this.state = 'checking';
     try {
-      const r = await fetch(`${Config.baseUrl}/version.json?t=${Date.now()}`, { cache: 'no-store' });
+      const r = await fetch(`${Config.root}/version.json?t=${Date.now()}`, { cache: 'no-store' });
       const j = await r.json();
       this.latest = j.version;
       const apk = j.downloads && j.downloads.android && j.downloads.android.url;
-      this.apkUrl = apk ? (apk.startsWith('http') ? apk : `${Config.baseUrl}/${apk}`) : null;
+      this.apkUrl = apk ? (apk.startsWith('http') ? apk : `${Config.root}/${apk}`) : null;
       this.state = this.isNewer(j.version, Config.version) ? 'available' : 'uptodate';
     } catch (e) {
       this.state = 'failed';

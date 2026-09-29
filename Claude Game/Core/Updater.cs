@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Platformer.Core;
@@ -10,6 +11,10 @@ public enum UpdateState { Idle, Checking, UpToDate, Available, Downloading, Inst
 /// <summary>
 /// Checks {baseUrl}/version.json (published by the GitHub Actions workflow), downloads the
 /// zip for this platform, swaps the files next to the executable and restarts the game.
+/// Security: version.json must carry a valid ECDSA P-256 signature (version.json.sig) made with
+/// the release key whose public half is compiled into the game (game.json "updateKey"), and the
+/// downloaded zip must match the SHA-256 listed in the signed manifest. A hacked website or a
+/// man-in-the-middle can therefore not push a modified game.
 /// Running executables cannot be overwritten on Windows, but they can be renamed - so every
 /// replaced file is first renamed to *.old and cleaned up on the next start.
 /// </summary>
@@ -22,6 +27,7 @@ public static class Updater
 
     private static string? _download;
     private static string? _exeName;
+    private static byte[]? _sha256;
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
     public static string PlatformKey =>
@@ -48,7 +54,10 @@ public static class Updater
         {
             try
             {
-                var json = await Http.GetStringAsync($"{GameConfig.BaseUrl}/version.json?t={DateTime.UtcNow.Ticks}");
+                long t = DateTime.UtcNow.Ticks;
+                var json = await Http.GetByteArrayAsync($"{GameConfig.BaseUrl}/version.json?t={t}");
+                var sig = (await Http.GetStringAsync($"{GameConfig.BaseUrl}/version.json.sig?t={t}")).Trim();
+                if (!VerifySignature(json, sig)) throw new InvalidDataException("bad signature");
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 LatestVersion = root.GetProperty("version").GetString();
@@ -57,6 +66,8 @@ public static class Updater
                 {
                     _download = mine.GetProperty("url").GetString();
                     _exeName = mine.TryGetProperty("exe", out var exe) ? exe.GetString() : null;
+                    _sha256 = Convert.FromHexString(mine.GetProperty("sha256").GetString() ?? "");
+                    if (_sha256.Length != 32 || _exeName != null && (_exeName.Contains('/') || _exeName.Contains('\\') || _exeName.Contains(".."))) throw new InvalidDataException();
                 }
 
                 State = IsNewer(LatestVersion, GameConfig.Version) ? UpdateState.Available : UpdateState.UpToDate;
@@ -66,6 +77,22 @@ public static class Updater
                 State = UpdateState.Failed;
             }
         });
+    }
+
+    /// <summary>ECDSA P-256 / SHA-256 signature (raw r||s, base64) over the exact bytes of version.json.</summary>
+    public static bool VerifySignature(byte[] data, string signatureBase64)
+    {
+        if (string.IsNullOrEmpty(GameConfig.UpdateKey)) return false;
+        try
+        {
+            using var ec = ECDsa.Create();
+            ec.ImportSubjectPublicKeyInfo(Convert.FromBase64String(GameConfig.UpdateKey), out _);
+            return ec.VerifyData(data, Convert.FromBase64String(signatureBase64), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static bool IsNewer(string? remote, string local) =>
@@ -80,7 +107,7 @@ public static class Updater
         {
             try
             {
-                var url = _download!.StartsWith("http") ? _download : $"{GameConfig.BaseUrl}/{_download!.TrimStart('/')}";
+                var url = _download!.StartsWith("https://") ? _download : $"{GameConfig.BaseUrl}/{_download!.TrimStart('/')}";
                 var tmp = Path.Combine(Path.GetTempPath(), $"{GameConfig.Slug}-update.zip");
                 using (var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
                 {
@@ -98,6 +125,11 @@ public static class Updater
                         if (total > 0) Progress = read / (float)total;
                     }
                 }
+
+                // the file must be exactly the one listed in the signed manifest
+                await using (var f = File.OpenRead(tmp))
+                    if (!CryptographicOperations.FixedTimeEquals(await SHA256.HashDataAsync(f), _sha256))
+                        throw new InvalidDataException("checksum mismatch");
 
                 State = UpdateState.Installing;
                 var baseDir = AppContext.BaseDirectory;
@@ -121,6 +153,7 @@ public static class Updater
             }
             catch
             {
+                try { File.Delete(Path.Combine(Path.GetTempPath(), $"{GameConfig.Slug}-update.zip")); } catch { /* ignore */ }
                 State = UpdateState.Failed;
             }
         });

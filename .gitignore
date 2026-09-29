@@ -2,6 +2,10 @@ bin/
 obj/
 .idea/
 *.user
+build/
+dist/
+
+# generated web / Android files
 web/js/data.js
 web/manifest.webmanifest
 web/icon-*.png
@@ -9,7 +13,23 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+android/app/src/main/assets/
+android/app/src/main/res/mipmap-*/
+
+# secrets - never in git
 *.keystore
 *.jks
 *.p12
+*.pem
+*.sqlite
+server/config/config.php
+.env
+
+# website build products (created by tools/build-server.mjs)
+server/data/*
+!server/data/.htaccess
+server/public/play/
+server/public/version.json*
+server/public/assets/icon.svg
+
 publish/

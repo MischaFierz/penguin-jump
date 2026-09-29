@@ -1,23 +1,46 @@
 'use strict';
 // Level simulation (port of Game/Stage.cs) and rendering (port of Game/StageView.cs).
+// The gameplay part must stay bit-identical to Stage.cs and server/src/Replay/Sim.php:
+// same operations in the same order, no Math.random/Math.sin in anything that affects gameplay.
 
 const P = {
   walk: 250, run: 400, accelGround: 2000, accelAir: 1300, friction: 2200,
   jumpV: 780, jumpVRun: 860, doubleJumpV: 720, gravityUp: 1800, gravity: 2800, maxFall: 1000,
   coyote: 0.1, jumpBuffer: 0.12, stompBounce: 460, stompBounceHeld: 740, springV: 1250, springVHeld: 1420,
-  pw: 28, ph: 40,
+  pw: 28, ph: 40, view: 1280, tps: 120, step: 1 / 120,
 };
-const rand = (a, b) => a + Math.random() * (b - a);
+const rand = (a, b) => a + Math.random() * (b - a); // cosmetic only
 const approach = (v, t, s) => v < t ? Math.min(v + s, t) : Math.max(v - s, t);
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+const sign = v => v > 0 ? 1 : v < 0 ? -1 : 0;
 const SOLID = new Set(['#', 'B', '?', 'F', 'S', 'W', 'H', 'E', 'x']);
 
-function parseLevel(file) {
-  const lines = DATA.levels[file].replace(/\r/g, '').split('\n');
+// Deterministic sine (same polynomial as DetMath.Sin in C# and PHP).
+function dsin(x) {
+  const k = Math.floor(x / 6.283185307179586 + 0.5);
+  let r = x - k * 6.283185307179586;
+  if (r > 1.5707963267948966) r = 3.141592653589793 - r;
+  else if (r < -1.5707963267948966) r = -3.141592653589793 - r;
+  const r2 = r * r;
+  return r * (1 + r2 * (-0.16666666666666666 + r2 * (0.008333333333333333 + r2 * (-0.0001984126984126984
+    + r2 * (2.7557319223985893e-6 + r2 * (-2.505210838544172e-8 + r2 * 1.6059043836821613e-10))))));
+}
+
+// One tick of player input: 6 bits (left 1, right 2, run 4, jump held 8, jump pressed 16, action pressed 32).
+const TickInput = {
+  none: { left: false, right: false, run: false, held: false, jump: false, action: false },
+  fromBits: b => ({ left: !!(b & 1), right: !!(b & 2), run: !!(b & 4), held: !!(b & 8), jump: !!(b & 16), action: !!(b & 32) }),
+  bits: i => (i.left ? 1 : 0) | (i.right ? 2 : 0) | (i.run ? 4 : 0) | (i.held ? 8 : 0) | (i.jump ? 16 : 0) | (i.action ? 32 : 0),
+};
+
+function parseLevel(file, text) {
+  const lines = (text !== undefined ? text : DATA.levels[file]).replace(/\r/g, '').split('\n');
   let id = file, world = 1, signs = [], i = 0;
   for (; i < lines.length && lines[i] !== '---'; i++) {
-    const [k, v] = lines[i].split('=');
-    if (k === 'id') id = v.trim();
+    const eq = lines[i].indexOf('=');
+    if (eq < 0) continue;
+    const k = lines[i].slice(0, eq).trim(), v = lines[i].slice(eq + 1).trim();
+    if (k === 'id') id = v;
     if (k === 'world') world = parseInt(v, 10);
     if (k === 'signs') signs = v.split(',').map(s => s.trim()).filter(Boolean);
   }
@@ -32,7 +55,7 @@ function parseLevel(file) {
 class Stage {
   constructor(data, cp) {
     this.data = data;
-    this.theme = Themes[data.world] || Themes[1];
+    this.theme = (typeof Themes !== 'undefined' && (Themes[data.world] || Themes[1])) || null;
     this.tiles = data.tiles.map(r => r.slice());
     this.W = data.w; this.H = data.h;
     this.player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, buffer: 0, power: 0, wings: false,
@@ -40,10 +63,12 @@ class Stage {
     this.enemies = []; this.platforms = []; this.icicles = []; this.items = []; this.snowballs = [];
     this.particles = []; this.texts = []; this.coinPops = []; this.checkpoints = []; this.signs = [];
     this.bumps = new Map(); this.crumbleTimer = new Map(); this.crumbleFallen = new Map(); this.springAnim = new Map();
-    this.time = 0; this.clock = 0; this.score = 0; this.coins = 0; this.totalCoins = 0;
+    this.timeTicks = 0; this.clock = 0; this.score = 0; this.coins = 0; this.totalCoins = 0;
     this.camX = 0; this.shake = 0; this.combo = 0;
-    this.completed = false; this.completeTimer = 0; this.message = null; this.messageTimer = 0; this.lastCheckpoint = null;
+    this.completed = false; this.completeTimer = 0; this.scoreAtGoal = 0;
+    this.message = null; this.messageTimer = 0; this.lastCheckpoint = null;
     this.onDied = null; this.onCompleted = null; this.onExtraLife = null;
+    this.in = TickInput.none;
     const signPos = [];
     const orig = data.tiles;
     for (let x = 0; x < this.W; x++) for (let y = 0; y < this.H; y++) {
@@ -74,12 +99,15 @@ class Stage {
     if (cp) {
       this.lastCheckpoint = cp;
       this.player.x = cp.tx * T + (T - P.pw) / 2; this.player.y = cp.ty * T + T - P.ph;
-      this.score = cp.score; this.coins = cp.coins; this.time = cp.time;
+      this.score = cp.score; this.coins = cp.coins; this.timeTicks = cp.timeTicks;
       for (const c of this.checkpoints) if (c.tx <= cp.tx) c.active = true;
     }
     this.player.prevBottom = this.player.y + P.ph;
-    this.camX = Math.max(0, Math.min(this.W * T - VW, this.player.x - VW * 0.4));
+    this.camX = Math.max(0, Math.min(Math.max(0, this.W * T - P.view), this.player.x + P.pw / 2 - P.view * 0.4));
   }
+
+  get time() { return this.timeTicks / P.tps; }
+  get finalScore() { return this.completed ? this.scoreAtGoal : this.score; }
 
   makeEnemy(kind, tx, ty) {
     const [w, h] = { walker: [40, 32], spiky: [40, 34], bird: [40, 28], hopper: [36, 30] }[kind];
@@ -95,19 +123,21 @@ class Stage {
   }
   oneWay(x, y) { const c = this.at(x, y); return c === '-' || c === '*'; }
 
-  update(dt, controls) {
+  /** Advances the level by dt; during play dt is always P.step (one tick) and input a TickInput. */
+  update(dt, input) {
+    this.in = input || TickInput.none;
     this.clock += dt;
-    if (!this.completed && !this.player.dead) this.time += dt;
+    if (dt > 0 && !this.completed && !this.player.dead) this.timeTicks++;
     if (this.messageTimer > 0) this.messageTimer -= dt;
     if (this.shake > 0) this.shake -= dt;
     for (const p of this.platforms) {
-      const s = Math.sin(this.clock * Math.PI * 2 / 4.5 + p.phase) * 3 * T;
+      const s = dsin(this.clock * 6.283185307179586 / 4.5 + p.phase) * (3 * T);
       const nx = p.vertical ? p.ox : p.ox + s, ny = p.vertical ? p.oy + s : p.oy;
       p.dx = nx - p.x; p.dy = ny - p.y; p.x = nx; p.y = ny;
     }
     if (this.player.dead) this.updateDead(dt);
     else if (this.completed) this.updateCompletion(dt);
-    else this.updatePlayer(dt, controls);
+    else this.updatePlayer(dt);
     this.updateCrumbles(dt);
     this.updateEnemies(dt);
     this.updateIcicles(dt);
@@ -115,32 +145,30 @@ class Stage {
     this.updateSnowballs(dt);
     this.updateEffects(dt);
     if (!this.player.dead) {
-      const target = this.player.x + P.pw / 2 - VW * 0.4 + this.player.facing * 60;
+      const target = this.player.x + P.pw / 2 - P.view * 0.4 + this.player.facing * 60;
       this.camX += (target - this.camX) * Math.min(1, dt * 5);
-      this.camX = Math.max(0, Math.min(Math.max(0, this.W * T - VW), this.camX));
+      this.camX = Math.max(0, Math.min(Math.max(0, this.W * T - P.view), this.camX));
     }
   }
 
   rectP() { const p = this.player; return { x: p.x, y: p.y, w: P.pw, h: P.ph }; }
 
-  updatePlayer(dt, controls) {
-    const p = this.player;
+  updatePlayer(dt) {
+    const p = this.player, inp = this.in;
     p.anim += dt;
     if (p.invuln > 0) p.invuln -= dt;
     if (p.riding) { p.x += p.riding.dx; p.y += p.riding.dy; p.riding = null; }
-    const left = controls && Input.left, right = controls && Input.right, run = controls && Input.runHeld, held = controls && Input.jumpHeld;
-    const jumpPressed = controls && this.pendingJump, actionPressed = controls && this.pendingAction;
-    this.pendingJump = this.pendingAction = false;
-    if (jumpPressed) p.buffer = P.jumpBuffer; else p.buffer -= dt;
+    if (inp.jump) p.buffer = P.jumpBuffer; else p.buffer -= dt;
     if (p.onGround) { p.coyote = P.coyote; p.doubleUsed = false; } else p.coyote -= dt;
 
-    const target = (right ? 1 : 0) - (left ? 1 : 0), max = run ? P.run : P.walk;
-    if (target) {
+    const target = (inp.right ? 1 : 0) - (inp.left ? 1 : 0), max = inp.run ? P.run : P.walk;
+    if (target !== 0) {
       p.facing = target;
       let acc = p.onGround ? P.accelGround : P.accelAir;
-      if (Math.sign(p.vx) !== target && p.onGround) acc *= 1.6;
+      if (sign(p.vx) !== target && p.onGround) acc *= 1.6;
       p.vx = approach(p.vx, target * max, acc * dt);
-    } else p.vx = approach(p.vx, 0, (p.onGround ? P.friction : P.friction * 0.25) * dt);
+    } else if (p.onGround) p.vx = approach(p.vx, 0, P.friction * dt);
+    else p.vx = approach(p.vx, 0, P.friction * 0.25 * dt);
 
     if (p.buffer > 0 && p.coyote > 0) {
       const rf = Math.max(0, Math.min(1, (Math.abs(p.vx) - P.walk) / (P.run - P.walk)));
@@ -153,15 +181,15 @@ class Stage {
       Audio.play('doubleJump');
       for (let i = 0; i < 8; i++) this.spawn(p.x + P.pw / 2, p.y + P.ph / 2 + 16, rand(-120, 120), rand(40, 140), 0.5, 4, [255, 255, 255, 230], false);
     }
-    if (actionPressed && p.power === 2 && this.snowballs.length < 2) {
+    if (inp.action && p.power === 2 && this.snowballs.length < 2) {
       this.snowballs.push({ x: p.x + P.pw / 2 + p.facing * 16, y: p.y + P.ph / 2 - 4, vx: p.facing * 560 + p.vx * 0.3, vy: 120, life: 2 });
       Audio.play('throw');
     }
-    const grav = p.vy < 0 && held ? P.gravityUp : P.gravity;
+    const grav = p.vy < 0 && inp.held ? P.gravityUp : P.gravity;
     p.vy = Math.min(p.vy + grav * dt, P.maxFall);
     p.prevBottom = p.y + P.ph;
     this.moveX(dt);
-    this.moveY(dt, held);
+    this.moveY(dt, inp.held);
     if (p.y > this.H * T + 60) this.kill();
     this.checkHazards(); this.checkPickups(); this.checkCheckpoints(); this.checkGoal();
   }
@@ -198,7 +226,8 @@ class Stage {
       }
       for (const mp of this.platforms) {
         if (p.x + P.pw > mp.x + 2 && p.x < mp.x + mp.wt * T - 2) {
-          if (p.prevBottom <= mp.y + Math.abs(mp.dy) + 1 && bottom >= mp.y && mp.y < best) { best = mp.y; p.riding = mp; }
+          const top = mp.y;
+          if (p.prevBottom <= top + Math.abs(mp.dy) + 1 && bottom >= top && top < best) { best = top; p.riding = mp; }
         }
       }
       if (best < Infinity) {
@@ -232,15 +261,15 @@ class Stage {
   hitBlock(x, y) {
     const c = this.at(x, y), cx = x * T + T / 2, cy = y * T;
     if (c === '?') { this.tiles[y][x] = 'E'; this.bump(x, y); this.addCoin(); this.coinPops.push({ x: cx, y: cy, t: 0 }); }
-    else if ('FSWH'.includes(c)) {
+    else if (c === 'F' || c === 'S' || c === 'W' || c === 'H') {
       this.tiles[y][x] = 'E'; this.bump(x, y);
       const kind = { F: 'fish', S: 'snowflake', W: 'wing', H: 'heart' }[c];
-      this.items.push({ kind, x: cx, y: cy + T / 2, vx: kind === 'snowflake' ? 0 : 110, vy: 0, emerge: 0.5, t: 0 });
+      this.items.push({ kind, x: x * T + T / 2, y: y * T + T / 2, vx: kind === 'snowflake' ? 0 : 110, vy: 0, emerge: 0.5, t: 0 });
       Audio.play('powerUp');
     } else if (c === 'B') {
       if (this.player.power >= 1) {
         this.tiles[y][x] = ' '; this.score += 50; Audio.play('break'); this.shake = 0.1;
-        for (let i = 0; i < 4; i++) this.spawn(x * T + 12 + (i % 2) * 24, y * T + 12 + Math.floor(i / 2) * 24, (i % 2 === 0 ? -1 : 1) * rand(80, 160), rand(-520, -320), 1.2, 12, this.theme.brick, true, 1);
+        for (let i = 0; i < 4; i++) this.spawn(x * T + 12 + (i % 2) * 24, y * T + 12 + Math.floor(i / 2) * 24, (i % 2 === 0 ? -1 : 1) * rand(80, 160), rand(-520, -320), 1.2, 12, this.theme && this.theme.brick, true, 1);
       } else { this.bump(x, y); Audio.play('bump'); }
     } else Audio.play('bump');
     const above = { x: x * T, y: y * T - 10, w: T, h: 12 };
@@ -259,19 +288,21 @@ class Stage {
   showMessage(t) { this.message = t; this.messageTimer = 3.2; }
 
   checkHazards() {
-    const r = this.rectP();
-    for (let x = Math.floor(r.x / T); x <= Math.floor((r.x + r.w) / T); x++)
-      for (let y = Math.floor(r.y / T); y <= Math.floor((r.y + r.h) / T); y++) {
+    const r = this.rectP(), p = this.player;
+    const x0 = Math.floor(r.x / T), x1 = Math.floor((r.x + r.w) / T), y0 = Math.floor(r.y / T), y1 = Math.floor((r.y + r.h) / T);
+    for (let x = x0; x <= x1; x++)
+      for (let y = y0; y <= y1; y++) {
         const c = this.at(x, y);
-        if (c === '^' && overlap(r, { x: x * T + 6, y: y * T + 20, w: T - 12, h: T - 20 })) { this.hurt(); if (!this.player.dead) this.player.vy = -520; return; }
+        if (c === '^' && overlap(r, { x: x * T + 6, y: y * T + 20, w: T - 12, h: T - 20 })) { this.hurt(); if (!p.dead) p.vy = -520; return; }
         if (c === '~' && overlap(r, { x: x * T, y: y * T + 18, w: T, h: T - 18 })) { this.kill(); return; }
       }
   }
 
   checkPickups() {
     const r = this.rectP(), p = this.player;
-    for (let x = Math.floor(r.x / T); x <= Math.floor((r.x + r.w) / T); x++)
-      for (let y = Math.floor(r.y / T); y <= Math.floor((r.y + r.h) / T); y++) {
+    const x0 = Math.floor(r.x / T), x1 = Math.floor((r.x + r.w) / T), y0 = Math.floor(r.y / T), y1 = Math.floor((r.y + r.h) / T);
+    for (let x = x0; x <= x1; x++)
+      for (let y = y0; y <= y1; y++) {
         if (this.at(x, y) !== 'o' || !overlap(r, { x: x * T + 10, y: y * T + 6, w: T - 20, h: T - 12 })) continue;
         this.tiles[y][x] = ' '; this.addCoin();
         for (let i = 0; i < 6; i++) this.spawn(x * T + T / 2, y * T + T / 2, rand(-100, 100), rand(-160, 40), 0.4, 3, [255, 230, 120], false);
@@ -281,7 +312,7 @@ class Stage {
       if (it.emerge > 0 || !overlap(r, { x: it.x - 16, y: it.y - 16, w: 32, h: 32 })) continue;
       this.items.splice(i, 1);
       this.score += 1000;
-      this.texts.push({ x: it.x, y: it.y, text: '1000', life: 1, color: C.accent });
+      this.texts.push({ x: it.x, y: it.y, text: '1000', life: 1, color: typeof C !== 'undefined' ? C.accent : '#fff' });
       if (it.kind === 'fish') { p.power = Math.max(p.power, 1); this.showMessage(Loc.t('power.fish')); Audio.play('powerUp'); }
       if (it.kind === 'snowflake') { p.power = 2; this.showMessage(Loc.t('power.snowflake')); Audio.play('powerUp'); }
       if (it.kind === 'wing') { p.wings = true; this.showMessage(Loc.t('power.wing')); Audio.play('powerUp'); }
@@ -294,7 +325,7 @@ class Stage {
     for (const c of this.checkpoints) {
       if (c.active || !overlap(this.rectP(), { x: c.tx * T, y: c.ty * T - T, w: T, h: T * 2 })) continue;
       c.active = true;
-      this.lastCheckpoint = { tx: c.tx, ty: c.ty, score: this.score, coins: this.coins, time: this.time };
+      this.lastCheckpoint = { tx: c.tx, ty: c.ty, score: this.score, coins: this.coins, timeTicks: this.timeTicks };
       Audio.play('checkpoint');
       this.texts.push({ x: c.tx * T + T / 2, y: c.ty * T - 60, text: Loc.t('checkpoint'), life: 1.6, color: 'rgb(120,255,170)' });
       for (let k = 0; k < 16; k++) this.spawn(c.tx * T + 40, c.ty * T - 30, rand(-150, 150), rand(-250, 50), 0.8, 4, [120, 255, 170], true);
@@ -304,7 +335,7 @@ class Stage {
   checkGoal() {
     const d = { x: this.goal.x * T - 4, y: this.goal.y * T - 16, w: T + 8, h: T + 16 };
     if (!overlap(this.rectP(), d)) return;
-    this.completed = true; this.completeTimer = 0;
+    this.completed = true; this.scoreAtGoal = this.score; this.completeTimer = 0;
     this.player.vx = 0; this.player.vy = 0;
     Audio.playMusic(-1); Audio.play('complete');
   }
@@ -346,15 +377,18 @@ class Stage {
   }
 
   updateCrumbles(dt) {
-    for (const [k, t] of [...this.crumbleTimer]) {
-      if (t - dt > 0) { this.crumbleTimer.set(k, t - dt); continue; }
+    for (const [k, t0] of [...this.crumbleTimer]) {
+      const t = t0 - dt;
+      if (t > 0) { this.crumbleTimer.set(k, t); continue; }
       this.crumbleTimer.delete(k); this.crumbleFallen.set(k, 4);
       Audio.play('crumble');
       const [x, y] = k.split(',').map(Number);
-      for (let i = 0; i < 5; i++) this.spawn(x * T + rand(6, 42), y * T + rand(4, 24), rand(-40, 40), rand(0, 100), 1, 8, mix(this.theme.brick, WHITE, 0.3), true, 1);
+      for (let i = 0; i < 5; i++) this.spawn(x * T + rand(6, 42), y * T + rand(4, 24), rand(-40, 40), rand(0, 100), 1, 8, this.theme ? mix(this.theme.brick, WHITE, 0.3) : null, true, 1);
     }
-    for (const [k, t] of [...this.crumbleFallen]) {
-      if (t - dt > 0) { this.crumbleFallen.set(k, t - dt); continue; }
+    for (const [k, t0] of [...this.crumbleFallen]) {
+      const t = t0 - dt;
+      this.crumbleFallen.set(k, t);
+      if (t > 0) continue;
       const [x, y] = k.split(',').map(Number);
       if (overlap({ x: x * T, y: y * T, w: T, h: T }, this.rectP())) continue;
       this.crumbleFallen.delete(k);
@@ -363,7 +397,7 @@ class Stage {
   }
 
   updateEnemies(dt) {
-    const L = this.camX - 2 * T, R = this.camX + VW + 2 * T;
+    const L = this.camX - 2 * T, R = this.camX + P.view + 2 * T;
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (!e.active) { if (e.x + e.w > L && e.x < R) e.active = true; else continue; }
@@ -382,7 +416,7 @@ class Stage {
         }
         this.moveEnemy(e, dt, false);
       } else {
-        const nx = e.ox + Math.sin(e.t * 0.9) * 2.2 * T, ny = e.oy + Math.sin(e.t * 2.4) * 0.5 * T;
+        const nx = e.ox + dsin(e.t * 0.9) * 2.2 * T, ny = e.oy + dsin(e.t * 2.4) * 0.5 * T;
         e.facing = nx > e.x ? 1 : -1; e.x = nx; e.y = ny;
       }
       if (e.y > this.H * T + 100) { this.enemies.splice(i, 1); continue; }
@@ -429,7 +463,7 @@ class Stage {
       const pts = 100 * Math.min(this.combo, 8);
       this.score += pts;
       this.texts.push({ x: e.x + e.w / 2, y: e.y, text: String(pts), life: 1, color: '#fff' });
-      p.vy = -(Input.jumpHeld ? P.stompBounceHeld : P.stompBounce);
+      p.vy = -(this.in.held ? P.stompBounceHeld : P.stompBounce);
       p.y = e.y - P.ph;
       Audio.play('stomp');
       for (let i = 0; i < 8; i++) this.spawn(e.x + e.w / 2, e.y + e.h / 2, rand(-160, 160), rand(-200, 0), 0.5, 4, [255, 255, 255, 220], true);
@@ -473,7 +507,7 @@ class Stage {
       if (it.kind === 'snowflake') continue;
       it.vy = Math.min(it.vy + P.gravity * 0.8 * dt, P.maxFall);
       it.x += it.vx * dt;
-      if (this.solid(Math.floor((it.x + Math.sign(it.vx) * 16) / T), Math.floor(it.y / T))) it.vx = -it.vx;
+      if (this.solid(Math.floor((it.x + sign(it.vx) * 16) / T), Math.floor(it.y / T))) it.vx = -it.vx;
       it.y += it.vy * dt;
       const by = Math.floor((it.y + 16) / T), bx = Math.floor(it.x / T);
       if (it.vy > 0 && (this.solid(bx, by) || this.oneWay(bx, by))) { it.y = by * T - 16; it.vy = it.kind === 'wing' ? -420 : 0; }
@@ -488,7 +522,7 @@ class Stage {
       s.vy = Math.min(s.vy + 1600 * dt, 900);
       s.x += s.vx * dt;
       let dead = s.life <= 0 || s.y > this.H * T;
-      if (this.solid(Math.floor((s.x + Math.sign(s.vx) * 9) / T), Math.floor(s.y / T))) dead = true;
+      if (this.solid(Math.floor((s.x + sign(s.vx) * 9) / T), Math.floor(s.y / T))) dead = true;
       s.y += s.vy * dt;
       const bx = Math.floor(s.x / T), by = Math.floor((s.y + 9) / T);
       if (s.vy > 0 && (this.solid(bx, by) || this.oneWay(bx, by))) { s.y = by * T - 9; s.vy = -380; }
@@ -516,6 +550,7 @@ class Stage {
   }
 
   spawn(x, y, vx, vy, life, size, color, gravity, shape = 0) {
+    if (this.headless) return;
     this.particles.push({ x, y, vx, vy, life, max: life, size, color, gravity, shape });
   }
   dust(x, y, n) { for (let i = 0; i < n; i++) this.spawn(x + rand(-10, 10), y - 2, rand(-90, 90), rand(-60, -10), 0.35, rand(3, 6), [255, 255, 255, 200], false); }
@@ -524,7 +559,18 @@ class Stage {
     const cx = this.player.x + P.pw / 2, cy = this.player.y + P.ph / 2;
     return this.signs.find(s => Math.hypot(s.tx * T + T / 2 - cx, s.ty * T + T / 2 - cy) < 110) || null;
   }
+
+  /** Gameplay state as text, used by the cross-language determinism test (tests/determinism.mjs). */
+  stateHash() {
+    const f = new Float64Array(1), u = new BigUint64Array(f.buffer);
+    const B = d => { f[0] = d; return u[0].toString(16).padStart(16, '0'); };
+    const p = this.player;
+    let s = `${this.timeTicks} ${this.score} ${this.coins} ${this.completed ? 1 : 0} ${p.dead ? 1 : 0} ${B(p.x)} ${B(p.y)} ${B(p.vx)} ${B(p.vy)} ${B(this.camX)} ${this.enemies.length}`;
+    for (const e of this.enemies) s += ` ${B(e.x)},${B(e.y)}`;
+    return s;
+  }
 }
+
 
 // ------------------------------------------------------------------ rendering
 const StageView = {

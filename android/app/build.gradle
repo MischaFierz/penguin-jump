@@ -1,0 +1,68 @@
+import groovy.json.JsonSlurper
+
+plugins {
+    id 'com.android.application'
+}
+
+// Name, package id, server and update key come from game.json at the repository root.
+def game = new JsonSlurper().parse(rootProject.file('../game.json'))
+def versionNameProp = project.findProperty('gameVersion') ?: '0.0.0-dev'
+def versionCodeProp = (project.findProperty('gameVersionCode') ?: '1') as Integer
+
+android {
+    namespace 'game.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId game.packageId
+        minSdk 24
+        targetSdk 35
+        versionCode versionCodeProp
+        versionName versionNameProp
+        resValue 'string', 'app_name', game.name
+        buildConfigField 'String', 'BASE_URL', "\"${(game.baseUrl ?: '').replaceAll('/+$', '')}\""
+        buildConfigField 'String', 'UPDATE_KEY', "\"${game.updateKey ?: ''}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    // Release key from CI secrets (never in the repository). Without it only debug builds are possible.
+    def ks = System.getenv('ANDROID_KEYSTORE_FILE')
+    signingConfigs {
+        if (ks) {
+            release {
+                storeFile file(ks)
+                storeType 'pkcs12'
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'release'
+                keyPassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                enableV1Signing false
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (ks) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.core:core:1.13.1'
+}

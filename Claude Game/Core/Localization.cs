@@ -46,8 +46,8 @@ public static class Loc
     public static void Set(Language lang) => Current = lang;
 
     public static string T(string key) =>
-        Current.Strings.TryGetValue(key, out var v) ? v :
-        _english.Strings.TryGetValue(key, out v) ? v : key;
+        Current != null && Current.Strings.TryGetValue(key, out var v) ? v :
+        _english != null && _english.Strings.TryGetValue(key, out v) ? v : key; // not initialised in headless tools
 
     public static string F(string key, params object[] args) => string.Format(T(key), args);
 

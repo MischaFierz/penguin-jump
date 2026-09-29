@@ -36,6 +36,7 @@ updateRotateText();
 Audio.sfxVolume = Save.data.sfx;
 Audio.musicVolume = Save.data.music;
 Input.init(canvas);
+Form.init();
 if (matchMedia('(pointer: coarse)').matches) Input.isTouch = true;
 
 // "?level=2-1" or "?scene=language" for quick testing
@@ -45,6 +46,8 @@ if (params.get('level')) {
   Scenes.start(new PlayScene(Math.max(0, idx)));
 } else if (params.get('scene') === 'language') Scenes.start(new LanguageScene());
 else if (params.get('scene') === 'levels') Scenes.start(new LevelSelectScene());
+else if (params.get('scene') === 'account') Scenes.start(new AccountScene());
+else if ((params.get('scene') || '').startsWith('board:')) Scenes.start(new LeaderboardScene(params.get('scene').slice(6), () => new LevelSelectScene()));
 else Scenes.start(new TitleScene());
 
 let last = performance.now();

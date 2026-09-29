@@ -28,6 +28,11 @@
         <PackageReference Include="Raylib-cs" Version="8.1.0" />
     </ItemGroup>
 
+    <!-- CI passes -p:SaveKey=... (GitHub secret) so official builds sign save files with a key that is not in the source -->
+    <ItemGroup Condition="'$(SaveKey)' != ''">
+        <AssemblyMetadata Include="SaveKey" Value="$(SaveKey)" />
+    </ItemGroup>
+
     <!-- Shared data (levels, translations, config) is embedded so the game is a single file. -->
     <ItemGroup>
         <EmbeddedResource Include="..\game.json" LogicalName="game.json" />

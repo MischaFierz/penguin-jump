@@ -175,7 +175,7 @@ class LanguageScene {
 // ------------------------------------------------------------------ options
 class OptionsScene {
   constructor() { this.menu = new Menu(); this.t = 0; this.controls = false; this.checking = false; }
-  layout() { this.menu.rects = []; for (let i = 0; i < 6; i++) this.menu.rects.push({ x: VW / 2 - 280, y: 150 + i * 80, w: 560, h: 62 }); }
+  layout() { this.menu.rects = []; for (let i = 0; i < 7; i++) this.menu.rects.push({ x: VW / 2 - 280, y: 130 + i * 72, w: 560, h: 58 }); }
   bar(v) { const n = Math.round(v * 10); return '■'.repeat(n) + '□'.repeat(10 - n); }
   update(dt) {
     this.t += dt;
@@ -190,13 +190,14 @@ class OptionsScene {
       if (this.menu.selected === 1) { s.music = clamp(s.music + dir * 0.1); Audio.musicVolume = s.music; }
       Save.save();
     }
-    const r = this.menu.update(6);
+    const r = this.menu.update(7);
     if (r === 0) { s.sfx = s.sfx >= 1 ? 0 : clamp(s.sfx + 0.1); Audio.sfxVolume = s.sfx; Save.save(); }
     if (r === 1) { s.music = s.music >= 1 ? 0 : clamp(s.music + 0.1); Audio.musicVolume = s.music; Save.save(); }
     if (r === 2) toggleFullscreen();
     if (r === 3) this.controls = true;
-    if (r === 4) { this.checking = true; Updater.check(); }
-    if (r === 5 || backPressed()) Scenes.go(new TitleScene());
+    if (r === 4) Scenes.go(new AccountScene());
+    if (r === 5) { this.checking = true; Updater.check(); }
+    if (r === 6 || backPressed()) Scenes.go(new TitleScene());
   }
   draw() {
     Backdrop.draw(this.t);
@@ -206,10 +207,11 @@ class OptionsScene {
     const items = [
       `${Loc.t('options.sfx')}   ${this.bar(s.sfx)}`, `${Loc.t('options.music')}   ${this.bar(s.music)}`,
       `${Loc.t('options.fullscreen')}: ${fs ? Loc.t('options.on') : Loc.t('options.off')}`,
-      Loc.t('options.controls'), Loc.t('options.update'), Loc.t('menu.back')];
-    items.forEach((it, i) => Ui.button(this.menu.rects[i], it, this.menu.selected === i, 30));
+      Loc.t('options.controls'), Online.loggedIn ? `${Loc.t('online.account')}: ${Save.data.onlineUser}` : Loc.t('online.account'),
+      Loc.t('options.update'), Loc.t('menu.back')];
+    items.forEach((it, i) => Ui.button(this.menu.rects[i], it, this.menu.selected === i, 28));
     const st = { checking: 'update.checking', uptodate: 'update.none', failed: 'update.failed' }[Updater.state];
-    if (st && (this.checking || Updater.state !== 'checking')) Ui.text(Loc.t(st), VW / 2, 640, 24, '#fff', 'center');
+    if (st && (this.checking || Updater.state !== 'checking')) Ui.text(Loc.t(st), VW / 2, 648, 24, '#fff', 'center');
     Ui.text(`${Loc.t('options.version')} ${Config.version}`, VW - 16, VH - 30, 18, 'rgb(40,60,100)', 'right', false);
     backButton();
     if (this.controls) this.drawControls();
@@ -233,8 +235,10 @@ class OptionsScene {
 }
 
 // ------------------------------------------------------------------ level select
+const TROPHY_BTN = { x: VW - 84, y: 20, w: 64, h: 64 };
 class LevelSelectScene {
-  constructor() { this.sel = Math.max(0, Math.min(Save.data.unlocked - 1, Session.levels.length - 1)); this.t = 0; Audio.playMusic(0); }
+  constructor(sel) { this.sel = sel !== undefined ? sel : Math.max(0, Math.min(Save.data.unlocked - 1, Session.levels.length - 1)); this.t = 0; Audio.playMusic(0); }
+  levelId(i) { return `${Math.floor(i / 3) + 1}-${i % 3 + 1}`; }
   rect(i) { return { x: 470 + (i % 3) * 250, y: 130 + Math.floor(i / 3) * 132, w: 230, h: 112 }; }
   unlocked(i) { return i < Save.data.unlocked; }
   update(dt) {
@@ -247,7 +251,11 @@ class LevelSelectScene {
     let click = false;
     for (let i = 0; i < n; i++) if (Ui.hover(this.rect(i))) { if (Input.mouse.moved && !Input.isTouch) this.sel = i; if (Input.click) { this.sel = i; click = true; } }
     if (prev !== this.sel) Audio.play('menuMove');
-    if ((Input.confirm || click) && this.unlocked(this.sel)) {
+    const board = Online.enabled && (Input.kp('KeyL') || Input.bp(3) || (Input.click && Ui.hover(TROPHY_BTN)));
+    if (board) {
+      Audio.play('menuSelect'); const keep = this.sel;
+      Scenes.go(new LeaderboardScene(this.levelId(this.sel), () => new LevelSelectScene(keep)));
+    } else if ((Input.confirm || click) && this.unlocked(this.sel)) {
       Audio.play('menuSelect'); Session.lives = 3; Scenes.go(new PlayScene(this.sel));
     } else if (backPressed()) Scenes.go(new TitleScene());
   }
@@ -287,6 +295,12 @@ class LevelSelectScene {
       }
     }
     backButton();
+    if (Online.enabled) {
+      const b = TROPHY_BTN;
+      Ui.rrect(b.x, b.y, b.w, b.h, 16, 'rgba(30,48,90,0.9)', '#78aae6');
+      Ui.text('🏆', b.x + b.w / 2, b.y + 14, 32, '#fff', 'center', false);
+      if (!Input.isTouch) Ui.text(Loc.t('online.hint'), VW - 60, VH - 34, 20, 'rgb(40,60,100)', 'right', false);
+    }
     Backdrop.hint();
   }
 }
@@ -298,8 +312,18 @@ class PlayScene {
     this.data = parseLevel(Session.levels[index]);
     this.stage = this.makeStage(cp);
     this.mode = 'intro'; this.modeTime = 0; this.acc = 0; this.menu = new Menu(); this.newRecord = false; this.timeBonus = 0;
+    this.pendingJump = false; this.pendingAction = false;
+    this.replay = []; this.recording = true; // inputs of this attempt (across respawns), for online highscores
+    this.runId = null; this.final = null;
+    if (Online.enabled && !cp) Online.startRun(this.data.id).then(id => { this.runId = id; });
     Audio.playMusic(this.data.world);
   }
+  canSubmit() { return Online.enabled && !!this.final; }
+  goSubmit(next) {
+    const s = this.stage;
+    Scenes.go(new SubmitScene({ level: this.data.id, runId: this.runId, replay: Replay.encode(this.replay), timeTicks: this.final.timeTicks, score: this.final.score, coins: s.coins }, next));
+  }
+  victoryLayout() { this.menu.rects = [{ x: VW / 2 - 300, y: 560, w: 290, h: 62 }, { x: VW / 2 + 10, y: 560, w: 290, h: 62 }]; }
   showTouch() { return Input.isTouch && this.mode === 'playing'; }
   makeStage(cp) {
     const s = new Stage(this.data, cp);
@@ -318,8 +342,9 @@ class PlayScene {
   }
   completed() {
     const s = this.stage;
-    this.timeBonus = Math.max(0, 300 - Math.floor(s.time)) * 10;
-    s.score += this.timeBonus;
+    this.timeBonus = Replay.timeBonus(s.timeTicks);
+    s.score = s.finalScore + this.timeBonus;
+    this.final = { timeTicks: s.timeTicks, score: s.score };
     const recs = Save.data.records, old = recs[this.data.id];
     this.newRecord = !old || s.score > old.score;
     const rec = old || { score: 0, coins: 0, totalCoins: 0, time: 0 };
@@ -333,7 +358,6 @@ class PlayScene {
   layout(n, y) { this.menu.rects = []; for (let i = 0; i < n; i++) this.menu.rects.push({ x: VW / 2 - 220, y: y + i * 76, w: 440, h: 62 }); }
   update(dt) {
     this.modeTime += dt;
-    const step = 1 / 120;
     switch (this.mode) {
       case 'intro':
         if (this.modeTime > 1.3 || (this.modeTime > 0.3 && (Input.jumpPressed || Input.confirm || Input.click))) this.setMode('playing');
@@ -341,11 +365,16 @@ class PlayScene {
       case 'playing':
         if (Input.pausePressed && !this.stage.completed && !this.stage.player.dead) { Audio.play('menuSelect'); this.setMode('paused'); return; }
         this.acc += Math.min(dt, 0.1);
-        this.stage.pendingJump = this.stage.pendingJump || Input.jumpPressed;
-        this.stage.pendingAction = this.stage.pendingAction || Input.actionPressed;
-        while (this.acc >= step) {
-          this.stage.update(step, true);
-          this.acc -= step;
+        this.pendingJump = this.pendingJump || Input.jumpPressed;
+        this.pendingAction = this.pendingAction || Input.actionPressed;
+        while (this.acc >= P.step) {
+          // button presses of this frame go into the first tick only
+          const inp = { left: Input.left, right: Input.right, run: Input.runHeld, held: Input.jumpHeld, jump: this.pendingJump, action: this.pendingAction };
+          this.pendingJump = this.pendingAction = false;
+          this.stage.update(P.step, inp);
+          if (this.recording) this.replay.push(TickInput.bits(inp));
+          if (this.stage.completed) this.recording = false;
+          this.acc -= P.step;
           if (this.mode !== 'playing') break;
         }
         break;
@@ -360,17 +389,22 @@ class PlayScene {
         break;
       }
       case 'complete': {
-        this.stage.update(dt, false);
+        this.stage.update(dt, TickInput.none);
         if (this.modeTime < 0.8) break;
-        this.layout(2, 470);
-        const r = this.menu.update(2);
+        const n = this.canSubmit() ? 3 : 2;
+        this.layout(n, 440);
+        const r = this.menu.update(n);
         if (r === 0) Scenes.go(new PlayScene(this.index + 1));
-        if (r === 1) Scenes.go(new LevelSelectScene());
+        if (r === 1 && n === 3) this.goSubmit(() => new PlayScene(this.index + 1));
+        if (r === n - 1) Scenes.go(new LevelSelectScene());
         break;
       }
       case 'victory':
-        this.stage.update(dt, false);
-        if (this.modeTime > 1.5 && (Input.confirm || Input.back || Input.click)) Scenes.go(new TitleScene());
+        this.stage.update(dt, TickInput.none);
+        if (this.modeTime < 1.5) break;
+        if (!this.canSubmit()) { if (Input.confirm || Input.back || Input.click) Scenes.go(new TitleScene()); break; }
+        this.victoryLayout();
+        { const r = this.menu.update(2); if (r === 0) this.goSubmit(() => new TitleScene()); if (r === 1) Scenes.go(new TitleScene()); }
         break;
       case 'gameover': {
         if (this.modeTime < 1) break;
@@ -409,7 +443,7 @@ class PlayScene {
     } else if (m === 'complete' || m === 'victory') {
       const a = Math.min(1, this.modeTime * 3), victory = m === 'victory';
       g.fillStyle = `rgba(0,0,0,${0.5 * a})`; g.fillRect(0, 0, VW, VH);
-      Ui.panel(VW / 2 - 330, 90, 660, victory ? 520 : 560);
+      Ui.panel(VW / 2 - 330, 90, 660, victory && !this.canSubmit() ? 520 : 580);
       Ui.title(victory ? Loc.t('victory.title') : Loc.t('complete.title'), VW / 2, 112, 56, C.accent, 'rgb(60,30,0)');
       const s = this.stage;
       this.stat(Loc.t('complete.coins'), `${s.coins} / ${s.totalCoins}`, 205);
@@ -418,11 +452,16 @@ class PlayScene {
       if (this.newRecord && Math.floor(this.modeTime * 3) % 2 === 0) Ui.text(Loc.t('complete.record'), VW / 2, 377, 32, 'rgb(120,255,170)', 'center');
       if (victory) {
         Ui.textBlock(Loc.t('victory.text'), VW / 2, 440, 30, 580);
-        if (this.modeTime > 1.5) Ui.text(Loc.t('menu.continue') + ' >', VW / 2, 560, 26, C.accent, 'center');
+        if (this.modeTime > 1.5 && !this.canSubmit()) Ui.text(Loc.t('menu.continue') + ' >', VW / 2, 560, 26, C.accent, 'center');
+        if (this.modeTime > 1.5 && this.canSubmit()) {
+          this.victoryLayout();
+          Ui.button(this.menu.rects[0], Loc.t('online.submit'), this.menu.selected === 0, 26);
+          Ui.button(this.menu.rects[1], Loc.t('menu.continue'), this.menu.selected === 1, 26);
+        }
       } else if (this.modeTime >= 0.8) {
-        this.layout(2, 470);
-        Ui.button(this.menu.rects[0], Loc.t('complete.next'), this.menu.selected === 0, 30);
-        Ui.button(this.menu.rects[1], Loc.t('pause.levels'), this.menu.selected === 1, 30);
+        const items = this.canSubmit() ? [Loc.t('complete.next'), Loc.t('online.submit'), Loc.t('pause.levels')] : [Loc.t('complete.next'), Loc.t('pause.levels')];
+        this.layout(items.length, 440);
+        items.forEach((t, i) => Ui.button(this.menu.rects[i], t, this.menu.selected === i, 30));
       }
     } else if (m === 'gameover') {
       const a = Math.min(1, this.modeTime * 2);

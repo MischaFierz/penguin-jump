@@ -1,0 +1,197 @@
+# Builds, tests and releases everything on every push to main:
+#   tests      determinism (C# = JS = PHP), server end-to-end on SQLite and MariaDB, PHP lint
+#   desktop    self-contained single-file builds (Windows, Linux published; macOS built only)
+#   android    signed APK (web version in a WebView + verified self-update)
+#   release    signed update manifest, website upload ZIP, GitHub release v<version>
+# Secrets: UPDATE_SIGNING_KEY, ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD, SAVE_HMAC_KEY
+# All third-party actions are pinned to exact commits (supply-chain protection); Dependabot keeps them current.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      slug: ${{ steps.v.outputs.slug }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: v
+        run: |
+          base=$(jq -r .version game.json)
+          echo "version=${base}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "slug=$(jq -r .name game.json | tr -cd 'A-Za-z0-9')" >> "$GITHUB_OUTPUT"
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_DATABASE: gametest
+          MARIADB_USER: game
+          MARIADB_PASSWORD: test-password
+          MARIADB_RANDOM_ROOT_PASSWORD: '1'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, pdo_mysql, sodium, mbstring
+          coverage: none
+      - name: Build game (for the headless simulation test)
+        run: dotnet build "Claude Game/Claude Game.csproj" -c Release -o build/game
+      - name: PHP syntax check
+        run: find server -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+      - name: Determinism C# / JS / PHP (all levels)
+        run: node tests/determinism.mjs build/game/PenguinJump "$(which php)" 3 12000
+      - name: Server end-to-end (SQLite)
+        run: node tests/server-test.mjs "$(which php)"
+      - name: Server end-to-end (MariaDB)
+        env:
+          TEST_DB_DSN: mysql:host=127.0.0.1;port=3306;dbname=gametest;charset=utf8mb4
+          TEST_DB_USER: game
+          TEST_DB_PASS: test-password
+        run: node tests/server-test.mjs "$(which php)"
+
+  desktop:
+    needs: [version, tests]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish
+        env:
+          SAVE_HMAC_KEY: ${{ secrets.SAVE_HMAC_KEY }}
+        run: |
+          dotnet publish "Claude Game/Claude Game.csproj" -c Release -r ${{ matrix.rid }} \
+            -p:PublishSingleFile=true -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }} \
+            -p:AssemblyName=${{ needs.version.outputs.slug }} -p:SaveKey="$SAVE_HMAC_KEY" -o out
+          rm -f out/*.pdb
+          cd out && zip -r -9 "../${{ needs.version.outputs.slug }}-${{ matrix.rid }}.zip" .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ matrix.rid }}
+          path: ${{ needs.version.outputs.slug }}-${{ matrix.rid }}.zip
+          if-no-files-found: error
+
+  android:
+    needs: [version, tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: '8.11.1'
+      - name: Web game + icons into the app
+        run: |
+          sudo apt-get install -y -qq librsvg2-bin > /dev/null
+          node tools/build-web.mjs ${{ needs.version.outputs.version }}
+          node tools/render-icons.mjs
+          mkdir -p android/app/src/main/assets
+          cp -r web android/app/src/main/assets/www
+          rm -f android/app/src/main/assets/www/sw.js
+      - name: Build signed APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.p12"
+            task=assembleRelease; apk=release/app-release.apk
+          else
+            echo "::warning::no signing key available (fork/PR) - building a debug APK"
+            task=assembleDebug; apk=debug/app-debug.apk
+          fi
+          cd android
+          gradle --no-daemon $task -PgameVersion=${{ needs.version.outputs.version }} -PgameVersionCode=${{ github.run_number }}
+          cp "app/build/outputs/apk/$apk" "../${{ needs.version.outputs.slug }}-android.apk"
+          rm -f "$RUNNER_TEMP/release.p12"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android
+          path: ${{ needs.version.outputs.slug }}-android.apk
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [version, desktop, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      SLUG: ${{ needs.version.outputs.slug }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist/files
+          merge-multiple: true
+      - name: Website package with signed update manifest
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          sudo apt-get install -y -qq librsvg2-bin > /dev/null
+          node tools/render-icons.mjs
+          node tools/build-server.mjs dist/website "$VERSION"
+          # macOS builds are made but not published yet
+          published=(dist/files/*-win-x64.zip dist/files/*-linux-x64.zip dist/files/*-android.apk)
+          node tools/make-manifest.mjs dist/website/public "$VERSION" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}" "${published[@]}"
+          (cd dist/website && zip -r -9 -q "../files/${SLUG}-website.zip" .)
+          cd dist/files && sha256sum "${published[@]##*/}" "${SLUG}-website.zip" > SHA256SUMS.txt
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist/files
+          gh release create "v${VERSION}" --title "${SLUG} ${VERSION}" --target "$GITHUB_SHA" \
+            --notes "Automatic build of ${GITHUB_SHA::7}. Upload ${SLUG}-website.zip to the webspace to publish this version (see README)." \
+            ./*-win-x64.zip ./*-linux-x64.zip ./*-android.apk "./${SLUG}-website.zip" SHA256SUMS.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: website
+          path: dist/website

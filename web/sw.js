@@ -1,10 +1,10 @@
 // Service worker: network-first (so updates arrive as soon as they are online), cache fallback for offline play.
-const CACHE = 'game-cache-v1';
+const CACHE = 'game-cache-v2';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll([
     './', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png',
-    'js/data.js', 'js/engine.js', 'js/art.js', 'js/stage.js', 'js/scenes.js', 'js/main.js',
+    'css/style.css', 'js/data.js', 'js/engine.js', 'js/art.js', 'js/stage.js', 'js/replay.js', 'js/scenes.js', 'js/online.js', 'js/main.js',
   ]).catch(() => {})));
   self.skipWaiting();
 });
@@ -13,7 +13,7 @@ self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin || req.url.includes('version.json')) return;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin || req.url.includes('version.json') || req.url.includes('/api/')) return;
   e.respondWith(
     fetch(new Request(req, { cache: 'no-cache' }))
       .then(res => {

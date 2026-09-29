@@ -1,0 +1,54 @@
+# Web root: only index.php, static assets, the web game (/play) and version.json are reachable.
+Options -Indexes -MultiViews
+ServerSignature Off
+AddDefaultCharset utf-8
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # pass the Authorization header to PHP (needed for API tokens on some hosts)
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  # HTTPS only
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,L]
+  # hidden files (.git, .env ...) are never served
+  RewriteRule (^|/)\. - [F,L]
+  # everything that is not a real file goes to index.php
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# no other PHP file may be executed (e.g. an uploaded one)
+<FilesMatch "\.(php|phtml|phar|php\d)$">
+  Require all denied
+</FilesMatch>
+<Files "index.php">
+  Require all granted
+</Files>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "same-origin"
+  Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always unset X-Powered-By
+  # static files: strict CSP too (the game in /play needs nothing external either)
+  <FilesMatch "\.(html|svg|js|css|json|webmanifest)$">
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    Header set X-Frame-Options "DENY"
+  </FilesMatch>
+  # the update manifest may be read by the Android app (different origin)
+  <FilesMatch "^version\.json(\.sig)?$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType application/javascript .js
+</IfModule>

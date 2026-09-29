@@ -2,6 +2,7 @@
   "name": "Penguin Jump",
   "packageId": "ch.mischafierz.penguinjump",
   "version": "1.0",
-  "baseUrl": "https://mischafierz.github.io/penguin-jump",
-  "repo": "MischaFierz/penguin-jump"
+  "baseUrl": "",
+  "repo": "MischaFierz/penguin-jump",
+  "updateKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErcEjJPEu9yG5qIZDeO8+xwFWWZ7R0COdCwIuho87CnJv90i2kwvdnwC7K6EMCzcKhB1LV0JlkrbtSMmiQH4wTA=="
 }

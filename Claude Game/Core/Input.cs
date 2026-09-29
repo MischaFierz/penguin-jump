@@ -88,5 +88,7 @@ public static class Input
 
     public static bool Back => KeyPressed(KeyboardKey.Escape, KeyboardKey.Backspace) || BtnPressed(GamepadButton.RightFaceRight);
 
-    public static bool Click => Raylib.IsMouseButtonPressed(MouseButton.Left);
+    public static bool LeaderboardPressed => KeyPressed(KeyboardKey.L) || BtnPressed(GamepadButton.RightFaceUp);
+
+    public static bool Click =>Raylib.IsMouseButtonPressed(MouseButton.Left);
 }

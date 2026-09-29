@@ -1,0 +1,5 @@
+# Consistent line endings on every platform (level files and scripts are read by several languages)
+* text=auto eol=lf
+*.png binary
+*.p12 binary
+*.sln text eol=crlf

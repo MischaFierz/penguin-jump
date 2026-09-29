@@ -26,10 +26,11 @@ public sealed class LevelData
     public static List<string> Index() =>
         JsonSerializer.Deserialize<List<string>>(Assets.ReadText("levels/index.json")) ?? new();
 
-    public static LevelData Load(string file)
+    public static LevelData Load(string file) => Parse(Assets.ReadText($"levels/{file}"), file);
+
+    public static LevelData Parse(string text, string file)
     {
-        var text = Assets.ReadText($"levels/{file}").Replace("\r", "");
-        var lines = text.Split('\n');
+        var lines = text.Replace("\r", "").Split('\n');
         string id = file, signs = "";
         int world = 1, i = 0;
         for (; i < lines.Length && lines[i] != "---"; i++)

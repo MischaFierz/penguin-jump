@@ -103,6 +103,7 @@ public sealed class TitleScene : IScene
         for (int i = 0; i < items.Length; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i);
 
         Ui.Text($"v{GameConfig.Version}{(GameConfig.IsDevBuild ? " (dev)" : "")}", Ui.Width - 16, Ui.Height - 30, 18, new Color(40, 60, 100, 255), Align.Right, shadow: false);
+        if (SaveData.WasTampered) Ui.Text(Loc.T("online.save_tampered"), Ui.Width / 2f, 262, 22, new Color(255, 120, 120, 255), Align.Center);
         MenuBackdrop.Hint();
         UpdateDialog.Draw();
     }
@@ -181,12 +182,12 @@ public sealed class OptionsScene : IScene
     private bool _showControls;
     private bool _checking;
 
-    private const int Count = 6;
+    private const int Count = 7;
 
     private void Layout()
     {
         _menu.Rects.Clear();
-        for (int i = 0; i < Count; i++) _menu.Rects.Add(new Rectangle(Ui.Width / 2f - 280, 150 + i * 80, 560, 62));
+        for (int i = 0; i < Count; i++) _menu.Rects.Add(new Rectangle(Ui.Width / 2f - 280, 130 + i * 72, 560, 58));
     }
 
     private static string OnOff(bool v) => v ? Loc.T("options.on") : Loc.T("options.off");
@@ -239,10 +240,13 @@ public sealed class OptionsScene : IScene
                 _showControls = true;
                 break;
             case 4:
+                SceneManager.Go(new AccountScene());
+                break;
+            case 5:
                 _checking = true;
                 Updater.CheckAsync();
                 break;
-            case 5:
+            case 6:
                 SceneManager.Go(new TitleScene());
                 break;
         }
@@ -261,10 +265,11 @@ public sealed class OptionsScene : IScene
             $"{Loc.T("options.music")}   {Bar(save.MusicVolume)}",
             $"{Loc.T("options.fullscreen")}: {OnOff(save.Fullscreen)}",
             Loc.T("options.controls"),
+            Online.LoggedIn ? $"{Loc.T("online.account")}: {Online.Username}" : Loc.T("online.account"),
             Loc.T("options.update"),
             Loc.T("menu.back")
         ];
-        for (int i = 0; i < Count; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i, 30);
+        for (int i = 0; i < Count; i++) Ui.Button(_menu.Rects[i], items[i], _menu.Selected == i, 28);
 
         string status = Updater.State switch
         {
@@ -275,7 +280,7 @@ public sealed class OptionsScene : IScene
             _ => ""
         };
         if (_checking || Updater.State is UpdateState.UpToDate or UpdateState.Failed)
-            Ui.Text(status, Ui.Width / 2f, 640, 24, Color.White, Align.Center);
+            Ui.Text(status, Ui.Width / 2f, 648, 24, Color.White, Align.Center);
         Ui.Text($"{Loc.T("options.version")} {GameConfig.Version}{(GameConfig.IsDevBuild ? " (dev)" : "")}", Ui.Width - 16, Ui.Height - 30, 18, new Color(40, 60, 100, 255), Align.Right, shadow: false);
 
         if (_showControls) DrawControls();
@@ -328,6 +333,8 @@ public sealed class LevelSelectScene : IScene
 
     private static bool Unlocked(int i) => i < SaveData.Current.Unlocked;
 
+    public int Selected { set => _sel = Math.Clamp(value, 0, Session.Levels.Count - 1); }
+
     public void Update(float dt)
     {
         _t += dt;
@@ -350,6 +357,12 @@ public sealed class LevelSelectScene : IScene
             Audio.Play(Sfx.MenuSelect);
             Session.Lives = Session.StartLives;
             SceneManager.Go(new PlayScene(_sel));
+        }
+        else if (Input.LeaderboardPressed && Online.Enabled)
+        {
+            Audio.Play(Sfx.MenuSelect);
+            int keep = _sel;
+            SceneManager.Go(new LeaderboardScene($"{_sel / 3 + 1}-{_sel % 3 + 1}", () => new LevelSelectScene { Selected = keep }));
         }
         else if (Input.Back) SceneManager.Go(new TitleScene());
     }
@@ -397,6 +410,7 @@ public sealed class LevelSelectScene : IScene
                 Art.Star(new Vector2(r.X + r.Width - 26, r.Y + 94), 9, 4, new Color(255, 230, 90, 255));
             }
         }
+        if (Online.Enabled) Ui.Text(Loc.T("online.hint"), Ui.Width - 60, Ui.Height - 34, 20, new Color(40, 60, 100, 255), Align.Right, shadow: false);
         MenuBackdrop.Hint();
     }
 

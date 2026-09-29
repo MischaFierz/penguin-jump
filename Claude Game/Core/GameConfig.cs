@@ -30,6 +30,9 @@ public static class GameConfig
     public static string BaseUrl { get; private set; } = "";
     public static string Repo { get; private set; } = "";
 
+    /// <summary>Public key (SPKI, base64) that release manifests must be signed with.</summary>
+    public static string UpdateKey { get; private set; } = "";
+
     /// <summary>Version of this build, e.g. "1.0.42". Local builds are "0.0.0".</summary>
     public static string Version { get; private set; } = "0.0.0";
 
@@ -47,6 +50,7 @@ public static class GameConfig
         PackageId = root.TryGetProperty("packageId", out var p) ? p.GetString() ?? "" : "";
         BaseUrl = (root.TryGetProperty("baseUrl", out var b) ? b.GetString() ?? "" : "").TrimEnd('/');
         Repo = root.TryGetProperty("repo", out var r) ? r.GetString() ?? "" : "";
+        UpdateKey = root.TryGetProperty("updateKey", out var k) ? k.GetString() ?? "" : "";
 
         var info = typeof(GameConfig).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0-dev";
         IsDevBuild = info.Contains("dev", StringComparison.OrdinalIgnoreCase);
