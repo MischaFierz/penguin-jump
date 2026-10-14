@@ -100,7 +100,7 @@ jobs:
             -p:AssemblyName=${{ needs.version.outputs.slug }} -p:SaveKey="$SAVE_HMAC_KEY" -o out
           rm -f out/*.pdb
           cd out && zip -r -9 "../${{ needs.version.outputs.slug }}-${{ matrix.rid }}.zip" .
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-${{ matrix.rid }}
           path: ${{ needs.version.outputs.slug }}-${{ matrix.rid }}.zip
@@ -124,7 +124,7 @@ jobs:
         run: |
           dotnet tool install --global wix --version 5.0.2
           node tools/build-installer.mjs ${{ needs.version.outputs.version }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: installer
           path: dist/*-Setup.msi
@@ -170,7 +170,7 @@ jobs:
           gradle --no-daemon $task -PgameVersion=${{ needs.version.outputs.version }} -PgameVersionCode=${{ github.run_number }}
           cp "app/build/outputs/apk/$apk" "../${{ needs.version.outputs.slug }}-android.apk"
           rm -f "$RUNNER_TEMP/release.p12"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
           path: ${{ needs.version.outputs.slug }}-android.apk
@@ -215,7 +215,7 @@ jobs:
           gh release create "v${VERSION}" --title "${SLUG} ${VERSION}" --target "$GITHUB_SHA" \
             --notes "Automatic build of ${GITHUB_SHA::7}. Upload ${SLUG}-website.zip to the webspace to publish this version (see README)." \
             ./*-Setup.msi ./*-win-x64.zip ./*-linux-x64.zip ./*-android.apk "./${SLUG}-website.zip" SHA256SUMS.txt
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: website
           path: dist/website
